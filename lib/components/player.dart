@@ -1,9 +1,9 @@
 import 'dart:math';
 
-import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
+import '../game/audio.dart';
 import '../game/config.dart';
 import '../game/sprite_library.dart';
 import 'art_component.dart';
@@ -52,13 +52,13 @@ class Player extends ArtComponent {
 
   @override
   Future<void> onLoad() async {
-    // Slightly forgiving hitbox: smaller than the sprite so near misses read
-    // as misses.
+    // Only the fuselage collides - not the wingtips, and not the exhaust
+    // plume at the bottom of the sprite.
     add(
-      RectangleHitbox(
-        size: Vector2(size.x * 0.55, size.y * 0.62),
-        position: size / 2,
-        anchor: Anchor.center,
+      hitboxFor(
+        widthFactor: GameConfig.playerHitboxWidth,
+        heightFactor: GameConfig.playerHitboxHeight,
+        centerY: GameConfig.playerHitboxCenterY,
       ),
     );
   }
@@ -115,7 +115,8 @@ class Player extends ArtComponent {
   }
 
   void _fire() {
-    final muzzle = Vector2(position.x, position.y - size.y / 2);
+    game.audio.playShot(volume: 0.45);
+    final muzzle = Vector2(position.x, position.y - size.y * 0.42);
     game.layer.add(
       PlayerBullet(
         position: muzzle,
@@ -131,7 +132,7 @@ class Player extends ArtComponent {
     }
     _thrusterTimer = GameConfig.thrusterInterval;
     game.layer.add(
-      Effects.thruster(Vector2(position.x, position.y + size.y * 0.42)),
+      Effects.thruster(Vector2(position.x, position.y + size.y * 0.34)),
     );
   }
 
@@ -146,6 +147,7 @@ class Player extends ArtComponent {
     _blinkTimer = GameConfig.playerBlinkPeriod;
     _spriteVisible = false;
     game.shake(GameConfig.shakeOnPlayerHit);
+    game.audio.play(AudioManager.playerHit, volume: 0.9);
     game.layer.add(
       Effects.sparks(absoluteCenter, color: const Color(0xFFFF6B6B), count: 10),
     );
@@ -174,6 +176,7 @@ class Player extends ArtComponent {
       ),
     );
     game.shake(GameConfig.shakeOnPlayerDeath, duration: 0.55);
+    game.audio.play(AudioManager.explosionLarge);
     removeFromParent();
     game.gameOver();
   }

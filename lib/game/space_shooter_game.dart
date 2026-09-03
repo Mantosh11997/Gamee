@@ -14,6 +14,7 @@ import '../components/powerup.dart';
 import '../managers/score_manager.dart';
 import '../managers/wave_manager.dart';
 import '../ui/overlay_ids.dart';
+import 'audio.dart';
 import 'config.dart';
 import 'sprite_library.dart';
 
@@ -40,6 +41,10 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
   final SpriteLibrary sprites = SpriteLibrary();
 
   final ScoreManager scores = ScoreManager();
+
+  /// Sound effects and music. Fails safe: if the audio plugin or the files are
+  /// unavailable the game simply runs silent.
+  final AudioManager audio = AudioManager();
 
   late final StarfieldBackground background;
   late final GameLayer layer;
@@ -79,6 +84,8 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
 
     // Missing PNGs are tolerated - components fall back to drawn shapes.
     await sprites.loadAll(images);
+    // Likewise for audio: this never throws, it just goes quiet.
+    await audio.init();
 
     background = StarfieldBackground();
     layer = GameLayer();
@@ -103,6 +110,7 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     }
 
     _applyStateToControls();
+    audio.startMusic();
     overlays.add(Overlays.mainMenu);
   }
 
@@ -125,6 +133,7 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     overlays.remove(Overlays.gameOver);
     overlays.add(Overlays.pauseButton);
     _applyStateToControls();
+    audio.startMusic();
     resumeEngine();
   }
 
@@ -136,6 +145,7 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     fireButton.isPressed = false;
     overlays.remove(Overlays.pauseButton);
     overlays.add(Overlays.pauseMenu);
+    audio.pauseMusic();
     pauseEngine();
   }
 
@@ -146,6 +156,7 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     state = PlayState.playing;
     overlays.remove(Overlays.pauseMenu);
     overlays.add(Overlays.pauseButton);
+    audio.resumeMusic();
     resumeEngine();
   }
 
@@ -158,6 +169,7 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     player = null;
     overlays.remove(Overlays.pauseButton);
     overlays.add(Overlays.gameOver);
+    audio.play(AudioManager.gameOver);
     _applyStateToControls();
   }
 
@@ -175,6 +187,7 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     ]);
     overlays.add(Overlays.mainMenu);
     _applyStateToControls();
+    audio.resumeMusic();
     resumeEngine();
   }
 

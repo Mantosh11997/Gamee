@@ -1,7 +1,7 @@
-import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
+import '../game/audio.dart';
 import '../game/config.dart';
 import 'art_component.dart';
 import 'effects.dart';
@@ -22,6 +22,7 @@ abstract class Bullet extends ArtComponent {
     required this.velocityY,
     required this.damage,
     required this.glowColor,
+    required this.hitboxCenterY,
   }) : super(anchor: Anchor.center, priority: 15);
 
   /// Signed vertical speed in px/s. Negative travels up the screen.
@@ -29,12 +30,21 @@ abstract class Bullet extends ArtComponent {
   final double damage;
   final Color glowColor;
 
+  /// Where along the sprite the solid head sits - the trail must not collide.
+  final double hitboxCenterY;
+
   final Paint _glowPaint = Paint();
   final Paint _corePaint = Paint();
 
   @override
   Future<void> onLoad() async {
-    add(RectangleHitbox(size: size * 0.85, position: size / 2, anchor: Anchor.center));
+    add(
+      hitboxFor(
+        widthFactor: GameConfig.bulletHitboxWidth,
+        heightFactor: GameConfig.bulletHitboxHeight,
+        centerY: hitboxCenterY,
+      ),
+    );
   }
 
   @override
@@ -50,7 +60,14 @@ abstract class Bullet extends ArtComponent {
   }
 
   @override
-  void renderUnder(Canvas canvas) => _renderGlow(canvas);
+  void renderUnder(Canvas canvas) {
+    // The bullet PNGs already carry their own bloom; painting another one on
+    // top of them reads as a hard translucent pill. Only the code-drawn
+    // placeholder needs the fake glow.
+    if (usesFallbackArt) {
+      _renderGlow(canvas);
+    }
+  }
 
   /// Cheap fake bloom: a few stacked translucent capsules. Much less expensive
   /// on mobile than a real `MaskFilter.blur` on every bullet.
@@ -106,6 +123,7 @@ class PlayerBullet extends Bullet {
         velocityY: -GameConfig.playerBulletSpeed,
         damage: GameConfig.playerBulletDamage,
         glowColor: GameConfig.playerBulletColor,
+        hitboxCenterY: GameConfig.playerBulletHitboxCenterY,
       );
 
   @override
@@ -117,6 +135,10 @@ class PlayerBullet extends Bullet {
       return;
     }
     other.takeDamage(damage);
+    // Only tick on a hit the enemy survives - a kill has its own explosion.
+    if (!other.isDying) {
+      game.audio.play(AudioManager.enemyHit, volume: 0.22);
+    }
     game.layer.add(
       Effects.sparks(absoluteCenter, color: GameConfig.playerBulletColor, count: 6),
     );
@@ -132,6 +154,7 @@ class EnemyBullet extends Bullet {
         velocityY: GameConfig.enemyBulletSpeed,
         damage: GameConfig.enemyBulletDamage,
         glowColor: GameConfig.enemyBulletColor,
+        hitboxCenterY: GameConfig.enemyBulletHitboxCenterY,
       );
 
   @override

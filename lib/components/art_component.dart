@@ -29,6 +29,26 @@ abstract class ArtComponent extends SpriteComponent
   /// is being drawn instead.
   bool get usesFallbackArt => sprite == null;
 
+  /// Builds a hitbox from fractions of the sprite box.
+  ///
+  /// The art includes wingtips and exhaust plumes that should not be solid, so
+  /// every entity states which slice of its box actually collides:
+  /// [widthFactor] and [heightFactor] size the box, [centerY] slides it along
+  /// the sprite (0 = top edge, 1 = bottom edge).
+  RectangleHitbox hitboxFor({
+    required double widthFactor,
+    required double heightFactor,
+    required double centerY,
+    CollisionType collisionType = CollisionType.active,
+  }) {
+    return RectangleHitbox(
+      size: Vector2(size.x * widthFactor, size.y * heightFactor),
+      position: Vector2(size.x / 2, size.y * centerY),
+      anchor: Anchor.center,
+      collisionType: collisionType,
+    );
+  }
+
   /// Drawn before the sprite. Default: nothing.
   void renderUnder(Canvas canvas) {}
 

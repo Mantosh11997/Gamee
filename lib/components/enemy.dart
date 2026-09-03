@@ -4,6 +4,7 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
+import '../game/audio.dart';
 import '../game/config.dart';
 import '../game/sprite_library.dart';
 import 'art_component.dart';
@@ -24,6 +25,9 @@ class EnemySpec {
     required this.speed,
     required this.score,
     required this.color,
+    required this.hitboxWidth,
+    required this.hitboxHeight,
+    required this.hitboxCenterY,
     this.fireInterval,
     this.weaveAmplitude = 0,
     this.weaveFrequency = 0,
@@ -52,37 +56,53 @@ class EnemySpec {
   final double weaveAmplitude;
   final double weaveFrequency;
 
+  /// Collision box as fractions of the sprite box - the art has wingtips and
+  /// exhaust plumes that should not be solid. See `ArtComponent.hitboxFor`.
+  final double hitboxWidth;
+  final double hitboxHeight;
+  final double hitboxCenterY;
+
   static const Map<EnemyType, EnemySpec> specs = <EnemyType, EnemySpec>{
+    // Sizes follow each PNG's aspect ratio, printed by tool/build_assets.py.
     EnemyType.basic: EnemySpec(
       asset: SpriteLibrary.enemyBasic,
-      width: 46,
-      height: 46,
+      width: 53.5,
+      height: 54,
       maxHp: 24,
       speed: 78,
       score: 10,
-      color: Color(0xFFB65BFF),
+      color: Color(0xFFFF4C3B),
       fireInterval: 2.6,
+      hitboxWidth: 0.70,
+      hitboxHeight: 0.62,
+      hitboxCenterY: 0.62,
     ),
     EnemyType.fast: EnemySpec(
       asset: SpriteLibrary.enemyFast,
-      width: 38,
-      height: 38,
+      width: 40,
+      height: 64,
       maxHp: 14,
       speed: 165,
       score: 15,
-      color: Color(0xFF2BE0C8),
+      color: Color(0xFFFF3D9A),
       weaveAmplitude: 62,
       weaveFrequency: 2.2,
+      hitboxWidth: 0.55,
+      hitboxHeight: 0.58,
+      hitboxCenterY: 0.62,
     ),
     EnemyType.tank: EnemySpec(
       asset: SpriteLibrary.enemyTank,
-      width: 76,
-      height: 76,
+      width: 88,
+      height: 94,
       maxHp: 120,
       speed: 46,
       score: 40,
-      color: Color(0xFFFF6B4A),
+      color: Color(0xFF7CE23A),
       fireInterval: 1.7,
+      hitboxWidth: 0.85,
+      hitboxHeight: 0.68,
+      hitboxCenterY: 0.56,
     ),
   };
 }
@@ -148,10 +168,10 @@ class Enemy extends ArtComponent {
   @override
   Future<void> onLoad() async {
     add(
-      RectangleHitbox(
-        size: Vector2(size.x * 0.8, size.y * 0.8),
-        position: size / 2,
-        anchor: Anchor.center,
+      hitboxFor(
+        widthFactor: spec.hitboxWidth,
+        heightFactor: spec.hitboxHeight,
+        centerY: spec.hitboxCenterY,
       ),
     );
   }
@@ -202,9 +222,10 @@ class Enemy extends ArtComponent {
     if (position.y < 0) {
       return;
     }
+    game.audio.play(AudioManager.shootEnemy, volume: 0.35);
     game.layer.add(
       EnemyBullet(
-        position: Vector2(position.x, position.y + size.y / 2),
+        position: Vector2(position.x, position.y + size.y * 0.4),
         sprite: game.sprites[SpriteLibrary.bulletEnemy],
       ),
     );
@@ -249,6 +270,12 @@ class Enemy extends ArtComponent {
       type == EnemyType.tank
           ? GameConfig.shakeOnExplosion * 1.8
           : GameConfig.shakeOnExplosion,
+    );
+    game.audio.play(
+      type == EnemyType.tank
+          ? AudioManager.explosionLarge
+          : AudioManager.explosionSmall,
+      volume: type == EnemyType.tank ? 0.95 : 0.6,
     );
     game.maybeDropPowerup(center);
     removeFromParent();

@@ -10,7 +10,9 @@ import 'package:space_shooter/components/bullet.dart';
 import 'package:space_shooter/components/enemy.dart';
 import 'package:space_shooter/components/player.dart';
 import 'package:space_shooter/components/powerup.dart';
+import 'package:space_shooter/game/audio.dart';
 import 'package:space_shooter/game/config.dart';
+import 'package:space_shooter/game/sprite_library.dart';
 import 'package:space_shooter/game/space_shooter_game.dart';
 import 'package:space_shooter/managers/score_manager.dart';
 import 'package:space_shooter/managers/wave_manager.dart';
@@ -25,6 +27,23 @@ Future<void> _tick(WidgetTester tester, [int frames = 1]) async {
   for (var i = 0; i < frames; i++) {
     await tester.pump(const Duration(milliseconds: 16));
   }
+}
+
+/// Lets real async work (asset manifest reads, PNG decoding) actually finish.
+///
+/// `pump` alone does not drive the image pipeline, so `onLoad` would never
+/// complete and the game's `late final` fields would still be unset.
+Future<void> _settleLoad(WidgetTester tester, SpaceShooterGame game) async {
+  // `runAsync` lets the real event loop (and the image codec) make progress;
+  // `pump` then drives the fake-async zone the load future lives in. Both are
+  // needed, alternating, or `onLoad` never finishes.
+  for (var i = 0; i < 300 && !game.isLoaded; i++) {
+    await tester.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 4)),
+    );
+    await tester.pump(const Duration(milliseconds: 16));
+  }
+  expect(game.isLoaded, isTrue, reason: 'the game never finished onLoad');
 }
 
 /// Boots the game inside a `GameWidget` with all overlays registered.
@@ -48,8 +67,9 @@ Future<SpaceShooterGame> _bootGame(WidgetTester tester) async {
       ),
     ),
   );
-  // Frames for onLoad (which probes for the optional PNGs) and the first tick.
-  await _tick(tester, 8);
+  await _settleLoad(tester, game);
+  // Frames for the widget swap out of the loader and the first game tick.
+  await _tick(tester, 6);
   return game;
 }
 
@@ -62,6 +82,33 @@ Future<SpaceShooterGame> _startRun(WidgetTester tester) async {
 }
 
 void main() {
+  // The audio plugin has no platform behind it under `flutter test`; leave it
+  // switched off so nothing reaches audioplayers.
+  setUpAll(() => AudioManager.enabled = false);
+
+  group('AudioManager', () {
+    test('is inert and mutable while the plugin is unavailable', () async {
+      final audio = AudioManager();
+      await audio.init();
+
+      expect(audio.available, isFalse, reason: 'disabled by the kill switch');
+      expect(audio.muted, isFalse);
+
+      // Every one of these must be a silent no-op rather than a throw.
+      audio
+        ..play(AudioManager.explosionSmall)
+        ..playShot()
+        ..startMusic()
+        ..pauseMusic()
+        ..resumeMusic();
+
+      audio.toggleMuted();
+      expect(audio.muted, isTrue);
+      audio.setMuted(false);
+      expect(audio.muted, isFalse);
+    });
+  });
+
   group('ScoreManager', () {
     test('tracks score, kills and a session best', () {
       final scores = ScoreManager()
@@ -123,10 +170,13 @@ void main() {
       expect(find.text('TAP TO PLAY'), findsOneWidget);
     });
 
-    testWidgets('runs with no PNG assets present', (tester) async {
+    testWidgets('loads every shipped sprite', (tester) async {
       final game = await _bootGame(tester);
-      // Nothing was found in assets/images/, and that is a supported setup.
-      expect(game.sprites.missing.length, 8);
+
+      expect(game.sprites.missing, isEmpty);
+      for (final name in SpriteLibrary.all) {
+        expect(game.sprites[name], isNotNull, reason: '$name should have loaded');
+      }
       expect(tester.takeException(), isNull);
     });
 
@@ -141,12 +191,27 @@ void main() {
       expect(find.text('TAP TO PLAY'), findsNothing);
     });
 
+    testWidgets('the mute toggle flips the audio manager and its icon',
+        (tester) async {
+      final game = await _startRun(tester);
+      expect(game.audio.muted, isFalse);
+      expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.volume_up_rounded));
+      await tester.pump();
+
+      expect(game.audio.muted, isTrue);
+      expect(find.byIcon(Icons.volume_off_rounded), findsOneWidget);
+    });
+
     testWidgets('the wave manager spawns enemies once a run is going',
         (tester) async {
       final game = await _startRun(tester);
       await _tick(tester, 200); // ~3.2 seconds of game time
 
-      expect(game.hasLiveEnemies, isTrue);
+      // Counting spawns rather than survivors: the ship auto-fires, so whether
+      // any given enemy is still alive at this instant is not deterministic.
+      expect(game.waves.totalSpawned, greaterThanOrEqualTo(2));
       expect(game.state, PlayState.playing);
       expect(tester.takeException(), isNull);
     });
@@ -258,6 +323,34 @@ void main() {
       final canvas = Canvas(recorder);
       for (final entity in entities) {
         expect(entity.usesFallbackArt, isFalse);
+        entity.render(canvas);
+      }
+      recorder.endRecording().dispose();
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('and through the code-drawn fallback when a PNG is missing',
+        (tester) async {
+      final entities = <ArtComponent>[
+        Player(position: Vector2.all(50), sprite: null),
+        for (final type in EnemyType.values)
+          Enemy(
+            type: type,
+            position: Vector2.all(50),
+            sprite: null,
+            speedMultiplier: 1,
+            canShoot: true,
+          ),
+        for (final type in PowerupType.values)
+          Powerup(type: type, position: Vector2.all(50), sprite: null),
+        PlayerBullet(position: Vector2.all(50), sprite: null),
+        EnemyBullet(position: Vector2.all(50), sprite: null),
+      ];
+
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      for (final entity in entities) {
+        expect(entity.usesFallbackArt, isTrue);
         entity.render(canvas);
       }
       recorder.endRecording().dispose();

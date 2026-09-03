@@ -9,8 +9,16 @@ class GameConfig {
 
   // ---------------------------------------------------------------- player --
 
-  static const double playerWidth = 56;
-  static const double playerHeight = 56;
+  // Sizes match the aspect ratio of the shipped PNG (241x256) so the art is
+  // never squashed. `tool/build_assets.py` prints the ratio for each sprite.
+  static const double playerWidth = 64;
+  static const double playerHeight = 68;
+
+  /// Hitbox as a fraction of the sprite box: the fuselage from nose to engine,
+  /// not the wingtips or the exhaust plume. Deliberately forgiving.
+  static const double playerHitboxWidth = 0.42;
+  static const double playerHitboxHeight = 0.60;
+  static const double playerHitboxCenterY = 0.44;
 
   /// Pixels per second when the joystick is pushed all the way out.
   static const double playerSpeed = 340;
@@ -45,15 +53,22 @@ class GameConfig {
 
   // --------------------------------------------------------------- bullets --
 
+  // Bullet sprites are long because they include a motion trail; the hitbox
+  // covers only the solid head, which is at the leading end of each one.
   static const double playerBulletSpeed = 640;
   static const double playerBulletDamage = 12;
-  static const double playerBulletWidth = 8;
-  static const double playerBulletHeight = 24;
+  static const double playerBulletWidth = 10;
+  static const double playerBulletHeight = 56;
+  static const double playerBulletHitboxCenterY = 0.24;
 
   static const double enemyBulletSpeed = 250;
   static const double enemyBulletDamage = 9;
-  static const double enemyBulletWidth = 9;
-  static const double enemyBulletHeight = 20;
+  static const double enemyBulletWidth = 8;
+  static const double enemyBulletHeight = 53;
+  static const double enemyBulletHitboxCenterY = 0.76;
+
+  static const double bulletHitboxWidth = 0.75;
+  static const double bulletHitboxHeight = 0.42;
 
   // ----------------------------------------------------------------- waves --
 
@@ -92,7 +107,8 @@ class GameConfig {
   /// Chance that a killed enemy drops something.
   static const double powerupDropChance = 0.16;
   static const double powerupFallSpeed = 95;
-  static const double powerupSize = 36;
+  static const double powerupWidth = 34;
+  static const double powerupHeight = 68;
   static const double healthRestore = 30;
 
   // ------------------------------------------------------------------ juice --
@@ -101,6 +117,12 @@ class GameConfig {
   static const double shakeOnExplosion = 5;
   static const double shakeOnPlayerDeath = 18;
   static const double shakeDuration = 0.3;
+
+  // ----------------------------------------------------------------- audio --
+
+  /// Master level for one-shot effects; individual calls scale this further.
+  static const double sfxVolume = 0.85;
+  static const double musicVolume = 0.42;
 
   // ---------------------------------------------------------------- palette --
 

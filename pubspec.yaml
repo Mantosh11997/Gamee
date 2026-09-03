@@ -12,11 +12,9 @@ dependencies:
   flutter:
     sdk: flutter
 
-  # Pinned to the latest stable release on pub.dev.
+  # Pinned to the latest stable releases on pub.dev.
   flame: 1.38.2
-
-  # Uncomment (and add audio files under assets/audio/) if you want sound.
-  # flame_audio: 2.12.2
+  flame_audio: 2.12.2
 
 dev_dependencies:
   flutter_test:
@@ -27,6 +25,9 @@ flutter:
   uses-material-design: true
 
   assets:
-    # Drop the transparent PNG sprites in here. The game runs fine with the
-    # folder empty - every component falls back to a code-drawn shape.
+    # Transparent PNG sprites. The game still runs if any of them are missing -
+    # each component falls back to a code-drawn shape.
     - assets/images/
+    # Synthesised SFX (WAV) and the music loop (MP3). Regenerate with
+    # `python3 tool/build_audio.py`. Missing files just mean silence.
+    - assets/audio/

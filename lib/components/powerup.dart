@@ -4,6 +4,7 @@ import 'package:flame/collisions.dart';
 import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
+import '../game/audio.dart';
 import '../game/config.dart';
 import '../game/sprite_library.dart';
 import 'art_component.dart';
@@ -34,6 +35,11 @@ extension PowerupTypeInfo on PowerupType {
     PowerupType.health => 'REPAIR',
     PowerupType.rapidFire => 'RAPID FIRE',
   };
+
+  String get sound => switch (this) {
+    PowerupType.health => AudioManager.powerupHealth,
+    PowerupType.rapidFire => AudioManager.powerupRapidFire,
+  };
 }
 
 /// A pickup that drifts down the screen until it is collected or leaves play.
@@ -46,7 +52,7 @@ class Powerup extends ArtComponent {
     required super.position,
     required super.sprite,
   }) : super(
-         size: Vector2.all(GameConfig.powerupSize),
+         size: Vector2(GameConfig.powerupWidth, GameConfig.powerupHeight),
          anchor: Anchor.center,
          priority: 12,
        ) {
@@ -65,10 +71,10 @@ class Powerup extends ArtComponent {
   @override
   Future<void> onLoad() async {
     add(
-      RectangleHitbox(
-        size: size * 0.9,
-        position: size / 2,
-        anchor: Anchor.center,
+      hitboxFor(
+        widthFactor: 0.85,
+        heightFactor: 0.9,
+        centerY: 0.5,
         collisionType: CollisionType.passive,
       ),
     );
@@ -101,6 +107,7 @@ class Powerup extends ArtComponent {
         player.grantRapidFire(GameConfig.rapidFireDuration);
     }
 
+    game.audio.play(type.sound);
     game.layer.add(Effects.pickup(absoluteCenter, type.color));
     game.announce(type.label);
     removeFromParent();
@@ -109,10 +116,16 @@ class Powerup extends ArtComponent {
   @override
   void renderUnder(Canvas canvas) {
     final pulse = 0.85 + 0.15 * sin(_age * 6);
-    _glowPaint.color = type.color.withValues(alpha: 0.28 * pulse);
-    canvas.drawCircle(
-      Offset(size.x / 2, size.y / 2),
-      size.x * 0.75 * pulse,
+    // The capsule art glows on its own, so the halo behind it is only a hint;
+    // the placeholder badge needs a much stronger one to read as a pickup.
+    final strength = usesFallbackArt ? 0.28 : 0.16;
+    _glowPaint.color = type.color.withValues(alpha: strength * pulse);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(size.x / 2, size.y / 2),
+        width: size.x * 1.5 * pulse,
+        height: size.y * 1.1 * pulse,
+      ),
       _glowPaint,
     );
   }

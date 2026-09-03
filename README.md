@@ -3,8 +3,10 @@
 A complete vertical space shooter for Android and iOS, built with **Flutter** and the
 **[Flame](https://pub.dev/packages/flame) 1.38.2** game engine.
 
-Everything except the ship/bullet/pickup sprites is drawn in code: the space gradient, the
-parallax starfield, the HUD, glows, HP bars, explosions, thruster trails and screen shake.
+Ships, bullets and pickups are PNG sprites. Everything else — the space gradient, the
+parallax starfield, the HUD, glows, HP bars, explosions, thruster trails, screen shake —
+is drawn in code. Every sound in the game is **synthesised from oscillators and noise** by
+a script in `tool/`; nothing is sampled or downloaded.
 
 ---
 
@@ -18,43 +20,18 @@ flutter run          # with a device or emulator attached
 Requires **Flutter 3.41 or newer** (Dart 3.11+), because that is what `flame: 1.38.2`
 pins. Check with `flutter --version`; `flutter upgrade` if you are behind.
 
-The Android and iOS projects are already generated and locked to portrait. There is
-nothing else to configure — the game **runs immediately with no art at all** (see below).
-
-Useful extras:
+The Android and iOS projects are generated and locked to portrait, and the art and audio
+are already in the repo — there is nothing to configure before the first run.
 
 ```bash
-flutter test         # 13 tests: lifecycle, difficulty ramp, combat rules, both render paths
+flutter test         # 16 tests: lifecycle, difficulty ramp, combat rules, audio, both render paths
 flutter analyze      # clean
 flutter build apk --release
 flutter build ios --release
 ```
 
----
-
-## Where the PNGs go
-
-Drop transparent PNGs into **`assets/images/`** using exactly these names:
-
-| File | Used by | Suggested size |
-| --- | --- | --- |
-| `player.png` | the player ship, nose pointing **up** | 128×128 |
-| `enemy_basic.png` | slow, low-HP enemy, nose **down** | 128×128 |
-| `enemy_fast.png` | quick weaving enemy, nose **down** | 96×96 |
-| `enemy_tank.png` | slow, high-HP, larger enemy | 192×192 |
-| `bullet_player.png` | player projectile, pointing **up** | 32×96 |
-| `bullet_enemy.png` | enemy projectile, pointing **down** | 32×80 |
-| `powerup_health.png` | health pickup badge | 96×96 |
-| `powerup_rapidfire.png` | rapid-fire pickup badge | 96×96 |
-
-The folder is already declared in `pubspec.yaml`, so no pubspec edit is needed — just add
-the files and hot restart.
-
-**Missing files are fine.** `SpriteLibrary` checks the asset manifest at boot and any sprite
-it cannot find is left `null`; the component then draws a distinct code-drawn placeholder
-instead (each enemy type has its own silhouette). You can add the eight PNGs one at a time
-and the game keeps working throughout. Sprites are drawn scaled to the component's `size`,
-so exact pixel dimensions do not matter — aspect ratio does.
+Platform floors are already satisfied: `audioplayers` needs Android minSdk 19 (Flutter's
+default is 24) and iOS 13 (the project targets 15).
 
 ---
 
@@ -66,14 +43,15 @@ lib/
 ├─ game/
 │  ├─ config.dart                ★ every tuning number in the game lives here
 │  ├─ space_shooter_game.dart    the FlameGame: component layout, states, score, screen shake
-│  └─ sprite_library.dart        PNG loading with graceful fallback to placeholder shapes
+│  ├─ sprite_library.dart        PNG loading with graceful fallback to placeholder shapes
+│  └─ audio.dart                 fail-safe SFX + music façade over flame_audio
 ├─ components/
 │  ├─ art_component.dart         SpriteComponent base that tolerates a missing sprite
 │  ├─ background.dart            gradient + nebulae + 3-layer looping parallax starfield
 │  ├─ game_layer.dart            container for gameplay entities; applies the screen shake
 │  ├─ player.dart                movement, firing cadence, HP, i-frames, glow, thruster
 │  ├─ enemy.dart                 3 archetypes + specs, weaving, shooting, HP bar, death flash
-│  ├─ bullet.dart                PlayerBullet / EnemyBullet with code-drawn bloom
+│  ├─ bullet.dart                PlayerBullet / EnemyBullet
 │  ├─ powerup.dart               health & rapid-fire drops
 │  ├─ effects.dart               particle explosions, sparks, thruster puffs, pickup sparkle
 │  ├─ controls.dart              joystick + optional hold-to-fire button
@@ -83,7 +61,11 @@ lib/
 │  └─ score_manager.dart         score / kills / session best
 └─ ui/
    ├─ overlay_ids.dart           overlay name constants
-   └─ overlays.dart              start menu, pause, game over (Flutter widgets)
+   └─ overlays.dart              start menu, pause, game over, mute toggle
+tool/
+├─ build_assets.py               raw art  -> assets/images/  (keying, trimming, rotating)
+├─ build_audio.py                oscillators -> assets/audio/ (all SFX + the music loop)
+└─ source_art/                   the untouched source images
 ```
 
 ### Rendering layers
@@ -106,38 +88,106 @@ move and the HUD, controls and starfield stay rock steady while the action rattl
 
 `PlayState.menu → playing ⇄ paused → gameOver → playing`
 
-Each state swaps Flutter overlays (`lib/ui/overlays.dart`) and toggles the on-screen
-controls. `startGame()` wipes the battlefield, resets score and waves and rebuilds the
-player, so Restart is a genuine full reset. The app also auto-pauses when it loses focus.
+Each state swaps Flutter overlays and toggles the on-screen controls. `startGame()` wipes
+the battlefield, resets score and waves and rebuilds the player, so Restart is a genuine
+full reset. The app auto-pauses when it loses focus.
+
+---
+
+## Art
+
+The eight sprites in `assets/images/` are built from `tool/source_art/` by:
+
+```bash
+pip install Pillow numpy
+python3 tool/build_assets.py
+```
+
+The script keys out baked-in backgrounds (the tank art arrives on a white checkerboard),
+trims transparent margins, rotates enemies and their bullets to face down, downscales with
+Lanczos, and prints each sprite's aspect ratio and measured hull box. Those printed numbers
+are what `GameConfig` and `EnemySpec` use for component sizes and hitboxes — **re-run the
+script and copy the values across if you swap the art.**
+
+| File | Used by | Shipped size |
+| --- | --- | --- |
+| `player.png` | player ship, nose **up** | 241×256 |
+| `enemy_basic.png` | slow, low-HP enemy, nose **down** | 222×224 |
+| `enemy_fast.png` | quick weaving enemy | 140×224 |
+| `enemy_tank.png` | slow, high-HP, larger enemy | 269×288 |
+| `bullet_player.png` | player projectile, **up** | 34×192 |
+| `bullet_enemy.png` | enemy projectile, **down** | 29×192 |
+| `powerup_health.png` | health pickup | 92×192 |
+| `powerup_rapidfire.png` | rapid-fire pickup | 98×192 |
+
+Hitboxes are a **slice** of each sprite box, not the whole thing — wingtips, exhaust
+plumes and bullet trails do not collide. See `ArtComponent.hitboxFor` and the
+`hitbox*` fields on `GameConfig` / `EnemySpec`.
+
+**Deleting any sprite is still safe.** `SpriteLibrary` checks the asset manifest at boot;
+anything it cannot find is left `null` and the component draws a distinct code-drawn
+placeholder instead (each enemy type has its own silhouette). Both render paths are
+covered by tests.
+
+---
+
+## Sound
+
+`assets/audio/` holds ten one-shot effects as 16-bit mono WAV plus a 29-second music loop
+as MP3 (Ogg Vorbis is not playable on iOS). Regenerate everything with:
+
+```bash
+pip install numpy soundfile
+python3 tool/build_audio.py
+```
+
+| Sound | Fires when |
+| --- | --- |
+| `shoot_player.wav` | the ship fires (pooled — up to 11×/s under rapid fire) |
+| `shoot_enemy.wav` | an enemy fires |
+| `enemy_hit.wav` | a bullet damages an enemy that survives |
+| `explosion_small.wav` | a basic or fast enemy dies |
+| `explosion_large.wav` | a tank dies, or the player does |
+| `player_hit.wav` | the ship takes damage |
+| `powerup_health.wav` / `powerup_rapidfire.wav` | a pickup is collected |
+| `wave_start.wav` | a wave begins |
+| `game_over.wav` | the run ends |
+| `music.mp3` | looping bed, 16 bars in A minor at 132 BPM |
+
+`AudioManager` is deliberately unkillable: if the plugin, the platform or the files are
+unavailable it flips `available` to false and the game runs silent — no throw, no stall.
+`AudioManager.enabled = false` switches it off entirely before the plugin is ever touched,
+which is what the widget tests do. A speaker button sits next to the pause control and on
+both menus; mute pauses the music in place rather than stopping it.
 
 ---
 
 ## Tuning it
 
-Open `lib/game/config.dart` — it is the single knob board. A few you will probably reach
-for first:
+Open `lib/game/config.dart` — it is the single knob board.
 
 | Constant | Effect |
 | --- | --- |
 | `autoFire` | `true` (default) the ship shoots by itself; `false` adds a hold-to-fire button bottom-right |
 | `playerFireInterval` / `rapidFireInterval` | seconds between shots, normally and while buffed |
 | `playerSpeed`, `playerMaxHp`, `playerInvulnerability` | ship feel and survivability |
+| `playerHitbox*`, `bulletHitbox*` | which slice of the sprite actually collides |
 | `baseSpawnInterval`, `spawnIntervalDecayPerWave`, `minSpawnInterval` | how fast waves get busy |
 | `baseEnemiesPerWave`, `enemiesAddedPerWave` | wave size growth |
 | `enemySpeedRampPerWave`, `maxEnemySpeedMultiplier` | the speed curve and its ceiling |
 | `firstShootingWave`, `firstTankWave` | how gentle the opening is |
 | `powerupDropChance`, `healthRestore`, `rapidFireDuration` | drop economy |
 | `shakeOnPlayerHit`, `shakeOnExplosion` | how much the screen kicks |
+| `sfxVolume`, `musicVolume` | master audio levels |
 
-Enemy stats (HP, speed, size, score, weave, rate of fire, placeholder colour) live in
-`EnemySpec.specs` in `lib/components/enemy.dart`. **Adding a fourth enemy type is two
+Enemy stats (HP, speed, size, score, weave, rate of fire, hitbox, placeholder colour) live
+in `EnemySpec.specs` in `lib/components/enemy.dart`. **Adding a fourth enemy type is two
 steps**: add a value to the `EnemyType` enum and an entry to `EnemySpec.specs`. The wave
 manager picks it up from there — only `_pickType()` needs a weight for it.
 
----
+### Waves, not levels
 
-## Adding sound
-
-Sound is not wired up (there are no audio assets to ship). To add it, uncomment
-`flame_audio: 2.12.2` in `pubspec.yaml`, add an `assets/audio/` entry, and call
-`FlameAudio.play('shoot.wav')` from `Player._fire()` and `Enemy._explode()`.
+There is no fixed level count and no win state: `WaveManager` increments `wave` forever and
+the run ends when HP hits 0. Wave size grows by 2 enemies each time (uncapped); the spawn
+interval bottoms out at wave 14 and the speed multiplier at wave 27, so the difficulty
+curve is fully ramped from there on.

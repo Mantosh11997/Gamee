@@ -148,6 +148,8 @@ class MainMenuOverlay extends StatelessWidget {
           icon: Icons.bolt,
           text: 'Grab drops for health & rapid fire',
         ),
+        const SizedBox(height: 18),
+        MuteButton(game: game, label: true),
       ],
     );
   }
@@ -215,6 +217,84 @@ class _PulsingHintState extends State<_PulsingHint>
           fontSize: 20,
           fontWeight: FontWeight.w800,
           letterSpacing: 4,
+        ),
+      ),
+    );
+  }
+}
+
+/// Small translucent circular icon button, used for the in-game controls.
+class _RoundIconButton extends StatelessWidget {
+  const _RoundIconButton({
+    required this.icon,
+    required this.onPressed,
+    this.tooltip,
+  });
+
+  final IconData icon;
+  final VoidCallback onPressed;
+  final String? tooltip;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: tooltip,
+      button: true,
+      child: Material(
+        color: Colors.white.withValues(alpha: 0.12),
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onPressed,
+          child: Padding(
+            padding: const EdgeInsets.all(9),
+            child: Icon(icon, color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Speaker toggle. Stateful so the icon flips the moment it is tapped -
+/// overlays are not rebuilt by the game loop.
+class MuteButton extends StatefulWidget {
+  const MuteButton({required this.game, this.label = false, super.key});
+
+  final SpaceShooterGame game;
+
+  /// When true, renders as a labelled text row instead of a bare icon.
+  final bool label;
+
+  @override
+  State<MuteButton> createState() => _MuteButtonState();
+}
+
+class _MuteButtonState extends State<MuteButton> {
+  void _toggle() {
+    setState(widget.game.audio.toggleMuted);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = widget.game.audio.muted;
+    final icon = muted ? Icons.volume_off_rounded : Icons.volume_up_rounded;
+    if (!widget.label) {
+      return _RoundIconButton(
+        icon: icon,
+        onPressed: _toggle,
+        tooltip: muted ? 'Unmute' : 'Mute',
+      );
+    }
+    return TextButton.icon(
+      onPressed: _toggle,
+      icon: Icon(icon, size: 18, color: GameConfig.playerGlow),
+      label: Text(
+        muted ? 'SOUND OFF' : 'SOUND ON',
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.7),
+          fontSize: 13,
+          letterSpacing: 2,
         ),
       ),
     );
@@ -303,7 +383,9 @@ class PauseOverlay extends StatelessWidget {
         const _NeonTitle('PAUSED', size: 34),
         const SizedBox(height: 32),
         _NeonButton(label: 'RESUME', onPressed: game.resumeGame),
-        const SizedBox(height: 12),
+        const SizedBox(height: 4),
+        MuteButton(game: game, label: true),
+        const SizedBox(height: 4),
         TextButton(
           onPressed: game.returnToMenu,
           child: Text(
@@ -319,7 +401,7 @@ class PauseOverlay extends StatelessWidget {
   }
 }
 
-/// The small pause control, shown top-centre while playing.
+/// Mute and pause, shown top-centre while a run is in progress.
 class PauseButtonOverlay extends StatelessWidget {
   const PauseButtonOverlay({required this.game, super.key});
 
@@ -332,17 +414,17 @@ class PauseButtonOverlay extends StatelessWidget {
         alignment: Alignment.topCenter,
         child: Padding(
           padding: const EdgeInsets.only(top: 10),
-          child: Material(
-            color: Colors.white.withValues(alpha: 0.12),
-            shape: const CircleBorder(),
-            child: InkWell(
-              customBorder: const CircleBorder(),
-              onTap: game.pauseGame,
-              child: const Padding(
-                padding: EdgeInsets.all(9),
-                child: Icon(Icons.pause, color: Colors.white, size: 20),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: <Widget>[
+              MuteButton(game: game),
+              const SizedBox(width: 10),
+              _RoundIconButton(
+                icon: Icons.pause,
+                onPressed: game.pauseGame,
+                tooltip: 'Pause',
               ),
-            ),
+            ],
           ),
         ),
       ),

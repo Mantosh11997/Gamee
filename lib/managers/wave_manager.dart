@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:flame/components.dart';
 
 import '../components/enemy.dart';
+import '../game/audio.dart';
 import '../game/config.dart';
 import '../game/space_shooter_game.dart';
 
@@ -22,6 +23,9 @@ class WaveManager extends Component with HasGameReference<SpaceShooterGame> {
 
   /// Seconds of "WAVE n" banner left. Read by the HUD.
   double bannerTimer = 0;
+
+  /// Enemies spawned since the run started. Purely informational.
+  int totalSpawned = 0;
 
   int _remainingToSpawn = 0;
   double _spawnTimer = 0;
@@ -51,6 +55,7 @@ class WaveManager extends Component with HasGameReference<SpaceShooterGame> {
     _interWaveTimer = 0;
     _remainingToSpawn = 0;
     _clearCheckDelay = 0;
+    totalSpawned = 0;
     _startNextWave();
   }
 
@@ -63,6 +68,11 @@ class WaveManager extends Component with HasGameReference<SpaceShooterGame> {
     _spawnTimer = 0.9;
     _clearCheckDelay = 0;
     bannerTimer = GameConfig.waveBannerDuration;
+    // `reset()` is callable on a detached manager (handy in tests), and there
+    // is no game to reach for sound in that case.
+    if (isMounted) {
+      game.audio.play(AudioManager.waveStart, volume: 0.7);
+    }
   }
 
   @override
@@ -110,6 +120,7 @@ class WaveManager extends Component with HasGameReference<SpaceShooterGame> {
   }
 
   void _spawnEnemy() {
+    totalSpawned++;
     final type = _pickType();
     final spec = EnemySpec.specs[type]!;
     final half = spec.width / 2;
