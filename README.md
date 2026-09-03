@@ -35,6 +35,75 @@ default is 24) and iOS 13 (the project targets 15).
 
 ---
 
+## Getting an APK
+
+`.github/workflows/build-apk.yml` analyzes, tests and builds the app on every branch push,
+on version tags, and on demand from the **Actions** tab (**Build APK → Run workflow**).
+
+Each successful run attaches a `nebula-strike-apk-<run>-<sha>` artifact containing:
+
+| APK | Use |
+| --- | --- |
+| `app-release.apk` | universal — installs on any device, largest download |
+| `app-arm64-v8a-release.apk` | modern phones (almost certainly the one you want) |
+| `app-armeabi-v7a-release.apk` | older 32-bit ARM devices |
+| `app-x86_64-release.apk` | emulators |
+
+Download it from the run's summary page, unzip, and `adb install app-arm64-v8a-release.apk`
+(or copy it to the device and open it). The run summary also lists each APK's size and says
+which key it was signed with.
+
+Push a tag to cut a release — the workflow publishes the APKs to a GitHub Release with
+generated notes:
+
+```bash
+git tag v1.0.0 && git push origin v1.0.0
+```
+
+Locally the same builds are:
+
+```bash
+flutter build apk --release                  # build/app/outputs/flutter-apk/app-release.apk
+flutter build apk --release --split-per-abi  # smaller, one per architecture
+```
+
+### Signing
+
+Out of the box the release build is signed with the **debug key**. That is enough to
+install and play, but not to publish — Google Play rejects debug-signed uploads.
+
+To sign with a real upload key, generate one:
+
+```bash
+keytool -genkey -v -keystore upload-keystore.jks -keyalg RSA \
+  -keysize 2048 -validity 10000 -alias upload
+```
+
+then add four repository secrets (**Settings → Secrets and variables → Actions**):
+
+| Secret | Value |
+| --- | --- |
+| `KEYSTORE_BASE64` | `base64 -w 0 upload-keystore.jks` |
+| `KEYSTORE_PASSWORD` | the keystore password |
+| `KEY_ALIAS` | `upload` |
+| `KEY_PASSWORD` | the key password |
+
+The workflow writes `android/key.properties` from those and deletes it afterwards; with no
+secrets set it skips the step entirely and nothing changes. For local release builds, create
+`android/key.properties` yourself (it is already gitignored):
+
+```properties
+storeFile=/absolute/path/to/upload-keystore.jks
+storePassword=…
+keyAlias=upload
+keyPassword=…
+```
+
+`android/app/build.gradle.kts` picks that file up automatically and falls back to the debug
+key when it is absent.
+
+---
+
 ## How it fits together
 
 ```
@@ -66,6 +135,8 @@ tool/
 ├─ build_assets.py               raw art  -> assets/images/  (keying, trimming, rotating)
 ├─ build_audio.py                oscillators -> assets/audio/ (all SFX + the music loop)
 └─ source_art/                   the untouched source images
+.github/workflows/
+└─ build-apk.yml                 analyze + test + APK build, and releases on a tag
 ```
 
 ### Rendering layers

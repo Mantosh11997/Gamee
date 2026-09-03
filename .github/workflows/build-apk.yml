@@ -1,0 +1,156 @@
+name: Build APK
+
+# Runs on every branch push, on version tags, and on demand from the Actions
+# tab. A tagged build (v1.2.3) additionally publishes the APKs to a GitHub
+# Release.
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: build-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.47.2
+
+jobs:
+  build:
+    name: Analyze, test and build
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # Present only if release signing is configured; see the "Signing"
+      # section of README.md. It is read into the job environment because a
+      # step's `if:` cannot reference `secrets` directly. Scoped to this job so
+      # the release job never sees it.
+      KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v4
+
+      # AGP 9 and Gradle 9 need JDK 17, which is also what the app compiles
+      # against (see android/app/build.gradle.kts).
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter ${{ env.FLUTTER_VERSION }}
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'pubspec.lock') }}
+          restore-keys: gradle-${{ runner.os }}-
+
+      - name: Report toolchain
+        run: |
+          flutter --version
+          java -version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      # No-op unless the four signing secrets are set: without key.properties
+      # the release build falls back to the debug key, which still produces an
+      # installable APK.
+      - name: Configure release signing
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$KEYSTORE_BASE64" | base64 -d > android/app/upload-keystore.jks
+          cat > android/key.properties <<PROPS
+          storeFile=${{ github.workspace }}/android/app/upload-keystore.jks
+          storePassword=${KEYSTORE_PASSWORD}
+          keyAlias=${KEY_ALIAS}
+          keyPassword=${KEY_PASSWORD}
+          PROPS
+          echo "Release keystore installed."
+
+      - name: Build universal APK
+        run: flutter build apk --release
+
+      - name: Build per-ABI APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f android/key.properties android/app/upload-keystore.jks
+
+      - name: Summarise the build
+        run: |
+          {
+            echo '### APKs'
+            echo
+            echo '| File | Size |'
+            echo '| --- | --- |'
+            for apk in build/app/outputs/flutter-apk/*.apk; do
+              [ -e "$apk" ] || continue
+              echo "| $(basename "$apk") | $(du -h "$apk" | cut -f1) |"
+            done
+            echo
+            if [ -n "${KEYSTORE_BASE64}" ]; then
+              echo 'Signed with the release keystore.'
+            else
+              echo 'Signed with the debug key (no `KEYSTORE_BASE64` secret set) - installable for testing, not for the Play Store.'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: nebula-strike-apk-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            build/app/outputs/flutter-apk/*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Download the APKs
+        uses: actions/download-artifact@v4
+        with:
+          pattern: nebula-strike-apk-*
+          merge-multiple: true
+          path: apks
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Nebula Strike ${GITHUB_REF_NAME}" \
+            --generate-notes \
+            apks/*.apk
