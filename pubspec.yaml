@@ -1,0 +1,32 @@
+name: space_shooter
+description: "Nebula Strike - a vertical space shooter built with Flutter and the Flame engine."
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  # flame 1.38.2 requires Dart >= 3.11.0 / Flutter >= 3.41.0
+  sdk: ^3.11.0
+  flutter: ">=3.41.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Pinned to the latest stable release on pub.dev.
+  flame: 1.38.2
+
+  # Uncomment (and add audio files under assets/audio/) if you want sound.
+  # flame_audio: 2.12.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    # Drop the transparent PNG sprites in here. The game runs fine with the
+    # folder empty - every component falls back to a code-drawn shape.
+    - assets/images/
