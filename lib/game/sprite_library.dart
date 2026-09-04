@@ -14,11 +14,31 @@ class SpriteLibrary {
   static const String playerMk2 = 'player_mk2.png';
   static const String playerMk3 = 'player_mk3.png';
   static const String playerMk4 = 'player_mk4.png';
+  static const String playerMk5 = 'player_mk5.png';
+  static const String playerMk6 = 'player_mk6.png';
+  static const String playerMk7 = 'player_mk7.png';
+  static const String playerTitan = 'player_titan.png';
   static const String enemyBasic = 'enemy_basic.png';
   static const String enemyFast = 'enemy_fast.png';
   static const String enemyTank = 'enemy_tank.png';
+  static const String enemyHeavy = 'enemy_heavy.png';
+  static const String enemyAssault = 'enemy_assault.png';
   static const String bulletPlayer = 'bullet_player.png';
   static const String bulletPlayerHeavy = 'bullet_player_heavy.png';
+  static const String bulletPlayerUltra = 'bullet_player_ultra.png';
+  static const String bulletPlayerLaser = 'bullet_player_laser.png';
+
+  // Ordnance: the slow, heavy, splash-damage weapons.
+  static const String missilePlayerHeavy = 'missile_player_heavy.png';
+  static const String missilePlayerCluster = 'missile_player_cluster.png';
+  static const String bombPlayer = 'bomb_player.png';
+  static const String bombPlayerNuclear = 'bomb_player_nuclear.png';
+
+  // Impact effects, drawn as scaling sprites rather than particles.
+  static const String attackAtomic = 'attack_atomic.png';
+  static const String explosionAtomic = 'explosion_atomic.png';
+  static const String attackNova = 'attack_nova.png';
+  static const String attackBeam = 'attack_beam.png';
   static const String bulletEnemy = 'bullet_enemy.png';
   static const String powerupHealth = 'powerup_health.png';
   static const String powerupRapidFire = 'powerup_rapidfire.png';
@@ -28,11 +48,27 @@ class SpriteLibrary {
     playerMk2,
     playerMk3,
     playerMk4,
+    playerMk5,
+    playerMk6,
+    playerMk7,
+    playerTitan,
     enemyBasic,
     enemyFast,
     enemyTank,
+    enemyHeavy,
+    enemyAssault,
     bulletPlayer,
     bulletPlayerHeavy,
+    bulletPlayerUltra,
+    bulletPlayerLaser,
+    missilePlayerHeavy,
+    missilePlayerCluster,
+    bombPlayer,
+    bombPlayerNuclear,
+    attackAtomic,
+    explosionAtomic,
+    attackNova,
+    attackBeam,
     bulletEnemy,
     powerupHealth,
     powerupRapidFire,

@@ -24,7 +24,7 @@ The Android and iOS projects are generated and locked to portrait, and the art a
 are already in the repo — there is nothing to configure before the first run.
 
 ```bash
-flutter test         # 26 tests: lifecycle, difficulty ramp, combat, audio, hangar economy, both render paths
+flutter test         # 33 tests: lifecycle, difficulty, combat, audio, hangar economy, ordnance, codex, both render paths
 flutter analyze      # clean
 flutter build apk --release
 flutter build ios --release
@@ -42,12 +42,22 @@ you own it** - art, stats and weapon are all on show behind the padlock, with th
 the card. Swipe the carousel, read the stats, unlock with coins, and the ship you equip is
 the one that flies.
 
-| Ship | Price | Weapon | Feel |
+| Ship | Price | Cannon | Ordnance |
 | --- | --- | --- | --- |
-| Scout | free | Pulse Cannon ×1 | the starter: nimble, single bolt |
-| Interceptor | 400 | Twin Plasma ×2 | faster hull, two parallel barrels |
-| Destroyer | 1200 | Tri-Spread ×3 | heavier, angled fan, more damage |
-| Dreadnought | 3000 | Siege Battery ×5 | slowest, toughest, wide arc |
+| Scout | free | Pulse Cannon ×1 | — |
+| Interceptor | 400 | Twin Plasma ×2 | — |
+| Destroyer | 1200 | Tri-Spread ×3 | — |
+| Dreadnought | 3000 | Siege Battery ×5 | Heavy Missile |
+| Battlecruiser | 6500 | Plasma Battery ×7 | Cluster Salvo |
+| Carrier | 12000 | Lance Array ×8 | Cluster Salvo |
+| Super Dreadnought | 22000 | Siege Lances ×9 | Gravity Bomb |
+| Titan | 40000 | Apex Battery ×11 | Atomic Warhead |
+
+**Ordnance** is the heavy secondary weapon the big hulls carry. It fires on its own slow
+cooldown alongside the cannon, flies slower than a bullet, and detonates on impact for full
+damage to what it hit plus half damage to everything inside its blast radius — so it is
+worth lining up on a cluster. The impact paints a `SpriteBurst`: a scaling, fading sprite
+(atomic burst, nova) rather than a particle spray.
 
 **Coins** come from playing: `score / 12 + wave × 15 + kills × 2`, shown on the game-over
 screen and added to the balance in the top-right of the hangar. Coins, unlocked ships, the
@@ -60,10 +70,11 @@ angle in degrees. `Player._fire()` walks that list, so a new weapon is data, not
 the hangar's weapon panel draws the same volley the ship will actually fire. Adding a ship
 is one entry in `ShipCatalog.all` plus its PNG.
 
-Skin art is optional exactly like everything else: `player_mk2/3/4.png` and
-`bullet_player_heavy.png` are not in the repo yet, so those cards show a code-drawn
-silhouette and the ships fall back to the starter hull's sprite in-game. Drop the PNGs in
-and they appear with no code change.
+Skin art is optional exactly like everything else. `player_mk2/3/4.png` and
+`bullet_player_heavy.png` are still not in the repo, so those three cards show a code-drawn
+silhouette and those hulls fall back to the starter sprite in-game; everything else —
+stats, weapons, ordnance, prices, unlocking — works regardless. Drop the PNGs in and they
+appear with no code change.
 
 ---
 
@@ -146,15 +157,17 @@ lib/
 │  ├─ space_shooter_game.dart    the FlameGame: component layout, states, score, screen shake
 │  ├─ sprite_library.dart        PNG loading with graceful fallback to placeholder shapes
 │  ├─ audio.dart                 fail-safe SFX + music façade over flame_audio
-│  ├─ ship_skin.dart             the ship catalogue: stats, prices, weapon layouts
+│  ├─ ship_skin.dart             the ship catalogue: stats, prices, weapons, ordnance
 │  └─ player_profile.dart        coins, owned ships, equipped ship, best score (persisted)
 ├─ components/
 │  ├─ art_component.dart         SpriteComponent base that tolerates a missing sprite
 │  ├─ background.dart            gradient + nebulae + 3-layer looping parallax starfield
 │  ├─ game_layer.dart            container for gameplay entities; applies the screen shake
 │  ├─ player.dart                movement, firing cadence, HP, i-frames, glow, thruster
-│  ├─ enemy.dart                 3 archetypes + specs, weaving, shooting, HP bar, death flash
+│  ├─ enemy.dart                 5 archetypes + specs, weaving, shooting, HP bar, death flash
 │  ├─ bullet.dart                PlayerBullet / EnemyBullet
+│  ├─ ordnance.dart              missiles, bombs and atomics with splash damage
+│  ├─ sprite_burst.dart          scaling/fading sprite explosions
 │  ├─ powerup.dart               health & rapid-fire drops
 │  ├─ effects.dart               particle explosions, sparks, thruster puffs, pickup sparkle
 │  ├─ controls.dart              joystick + optional hold-to-fire button
@@ -289,6 +302,24 @@ Enemy stats (HP, speed, size, score, weave, rate of fire, hitbox, placeholder co
 in `EnemySpec.specs` in `lib/components/enemy.dart`. **Adding a fourth enemy type is two
 steps**: add a value to the `EnemyType` enum and an entry to `EnemySpec.specs`. The wave
 manager picks it up from there — only `_pickType()` needs a weight for it.
+
+### The hostile codex
+
+The home screen's second tab lists every enemy in the game — art, HP, speed, points, rate
+of fire, whether it weaves, and the earliest wave it can appear on — so you can read the
+threat before you meet it.
+
+| Enemy | From | HP | Behaviour |
+| --- | --- | --- | --- |
+| Raider | wave 1 | 24 | straight down, shoots from wave 2 |
+| Stinger | wave 2 | 14 | fast, weaves, no guns |
+| Hulk | wave 3 | 120 | slow armoured brick |
+| Heavy Raider | wave 5 | 70 | up-gunned raider, fires twice as often |
+| Assault Cruiser | wave 9 | 190 | wide gunship that drifts while it hammers you |
+
+Each type's `firstWave` lives on its `EnemySpec`, and both the spawner and the codex read
+it — so the list can't drift out of sync with what actually spawns. A test asserts the
+spawner never picks a type before its first wave, across 30 waves.
 
 ### Waves, not levels
 

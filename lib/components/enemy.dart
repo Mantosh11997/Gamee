@@ -12,12 +12,14 @@ import 'bullet.dart';
 import 'effects.dart';
 
 /// The three enemy archetypes.
-enum EnemyType { basic, fast, tank }
+enum EnemyType { basic, fast, tank, heavy, assault }
 
 /// Immutable per-type stats. Add a new archetype by adding an enum value and
 /// an entry in [EnemySpec.specs] - the spawner picks types up automatically.
 class EnemySpec {
   const EnemySpec({
+    required this.displayName,
+    required this.description,
     required this.asset,
     required this.width,
     required this.height,
@@ -28,10 +30,17 @@ class EnemySpec {
     required this.hitboxWidth,
     required this.hitboxHeight,
     required this.hitboxCenterY,
+    required this.firstWave,
     this.fireInterval,
     this.weaveAmplitude = 0,
     this.weaveFrequency = 0,
   });
+
+  /// Shown in the hangar's hostile codex.
+  final String displayName;
+
+  /// One line on how this enemy behaves, for the codex.
+  final String description;
 
   /// PNG file name inside `assets/images/`.
   final String asset;
@@ -49,6 +58,10 @@ class EnemySpec {
   /// Used for the code-drawn fallback shape, the HP bar and the explosion.
   final Color color;
 
+  /// Earliest wave this type can spawn. The wave manager gates on it and the
+  /// hangar's codex reports it, so there is one source of truth.
+  final int firstWave;
+
   /// Seconds between shots, or null for an enemy that never shoots.
   final double? fireInterval;
 
@@ -65,6 +78,8 @@ class EnemySpec {
   static const Map<EnemyType, EnemySpec> specs = <EnemyType, EnemySpec>{
     // Sizes follow each PNG's aspect ratio, printed by tool/build_assets.py.
     EnemyType.basic: EnemySpec(
+      displayName: 'RAIDER',
+      description: 'Flies straight down and takes pot shots from wave 2.',
       asset: SpriteLibrary.enemyBasic,
       width: 53.5,
       height: 54,
@@ -76,8 +91,11 @@ class EnemySpec {
       hitboxWidth: 0.70,
       hitboxHeight: 0.62,
       hitboxCenterY: 0.62,
+      firstWave: 1,
     ),
     EnemyType.fast: EnemySpec(
+      displayName: 'STINGER',
+      description: 'Weaves across the screen at speed. Fragile, hard to lead.',
       asset: SpriteLibrary.enemyFast,
       width: 40,
       height: 64,
@@ -90,8 +108,11 @@ class EnemySpec {
       hitboxWidth: 0.55,
       hitboxHeight: 0.58,
       hitboxCenterY: 0.62,
+      firstWave: 2,
     ),
     EnemyType.tank: EnemySpec(
+      displayName: 'HULK',
+      description: 'Slow armoured brick. Soaks damage and keeps firing.',
       asset: SpriteLibrary.enemyTank,
       width: 88,
       height: 94,
@@ -103,6 +124,41 @@ class EnemySpec {
       hitboxWidth: 0.85,
       hitboxHeight: 0.68,
       hitboxCenterY: 0.56,
+      firstWave: GameConfig.firstTankWave,
+    ),
+    EnemyType.heavy: EnemySpec(
+      displayName: 'HEAVY RAIDER',
+      description: 'Up-gunned raider. More armour, and it shoots twice as often.',
+      asset: SpriteLibrary.enemyHeavy,
+      width: 68,
+      height: 67,
+      maxHp: 70,
+      speed: 92,
+      score: 25,
+      color: Color(0xFFFF5A2B),
+      fireInterval: 1.5,
+      hitboxWidth: 0.78,
+      hitboxHeight: 0.62,
+      hitboxCenterY: 0.58,
+      firstWave: GameConfig.firstHeavyWave,
+    ),
+    EnemyType.assault: EnemySpec(
+      displayName: 'ASSAULT CRUISER',
+      description: 'Wide gunship that drifts sideways while it hammers you.',
+      asset: SpriteLibrary.enemyAssault,
+      width: 86,
+      height: 88,
+      maxHp: 190,
+      speed: 62,
+      score: 60,
+      color: Color(0xFFFF3B2F),
+      fireInterval: 1.1,
+      weaveAmplitude: 40,
+      weaveFrequency: 0.9,
+      hitboxWidth: 0.80,
+      hitboxHeight: 0.60,
+      hitboxCenterY: 0.56,
+      firstWave: GameConfig.firstAssaultWave,
     ),
   };
 }
@@ -161,6 +217,10 @@ class Enemy extends ArtComponent {
 
   /// True once the enemy is committed to dying - bullets must ignore it.
   bool get isDying => _dying;
+
+  /// The big hulls get a louder death.
+  bool get _isHeavy =>
+      type == EnemyType.tank || type == EnemyType.assault;
 
   final Paint _shapePaint = Paint();
   final Paint _barPaint = Paint();
@@ -261,21 +321,19 @@ class Enemy extends ArtComponent {
       Effects.explosion(
         center,
         color: spec.color,
-        count: type == EnemyType.tank ? 34 : 20,
-        speed: type == EnemyType.tank ? 220 : 165,
-        radius: type == EnemyType.tank ? 4 : 3,
+        count: _isHeavy ? 34 : 20,
+        speed: _isHeavy ? 220 : 165,
+        radius: _isHeavy ? 4 : 3,
       ),
     );
     game.shake(
-      type == EnemyType.tank
+      _isHeavy
           ? GameConfig.shakeOnExplosion * 1.8
           : GameConfig.shakeOnExplosion,
     );
     game.audio.play(
-      type == EnemyType.tank
-          ? AudioManager.explosionLarge
-          : AudioManager.explosionSmall,
-      volume: type == EnemyType.tank ? 0.95 : 0.6,
+      _isHeavy ? AudioManager.explosionLarge : AudioManager.explosionSmall,
+      volume: _isHeavy ? 0.95 : 0.6,
     );
     game.maybeDropPowerup(center);
     removeFromParent();
@@ -336,6 +394,32 @@ class Enemy extends ArtComponent {
           ..lineTo(w * 0.88, h * 0.18)
           ..lineTo(w * 0.98, h * 0.68)
           ..close();
+      case EnemyType.heavy:
+        // Raider outline with weapon pods bolted to the shoulders.
+        path
+          ..moveTo(w * 0.5, h)
+          ..lineTo(w * 0.08, h * 0.62)
+          ..lineTo(w * 0.0, h * 0.30)
+          ..lineTo(w * 0.30, h * 0.34)
+          ..lineTo(w * 0.34, h * 0.04)
+          ..lineTo(w * 0.66, h * 0.04)
+          ..lineTo(w * 0.70, h * 0.34)
+          ..lineTo(w * 1.0, h * 0.30)
+          ..lineTo(w * 0.92, h * 0.62)
+          ..close();
+      case EnemyType.assault:
+        // Wide gunship: long swept wings either side of a deep hull.
+        path
+          ..moveTo(w * 0.5, h)
+          ..lineTo(w * 0.16, h * 0.72)
+          ..lineTo(w * 0.0, h * 0.22)
+          ..lineTo(w * 0.26, h * 0.28)
+          ..lineTo(w * 0.30, h * 0.0)
+          ..lineTo(w * 0.70, h * 0.0)
+          ..lineTo(w * 0.74, h * 0.28)
+          ..lineTo(w * 1.0, h * 0.22)
+          ..lineTo(w * 0.84, h * 0.72)
+          ..close();
     }
     canvas.drawPath(path, _shapePaint);
 
@@ -357,7 +441,7 @@ class Enemy extends ArtComponent {
   /// weaker types so the screen stays clean.
   void _renderHpBar(Canvas canvas) {
     final damaged = hp < spec.maxHp;
-    if (!damaged && type != EnemyType.tank) {
+    if (!damaged && !_isHeavy) {
       return;
     }
     const barHeight = 4.0;

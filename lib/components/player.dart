@@ -11,6 +11,7 @@ import 'art_component.dart';
 import 'bullet.dart';
 import 'effects.dart';
 import 'enemy.dart';
+import 'ordnance.dart';
 import 'powerup.dart';
 
 /// The player ship.
@@ -39,6 +40,7 @@ class Player extends ArtComponent {
   double rapidFireRemaining = 0;
 
   double _fireCooldown = 0;
+  double _ordnanceCooldown = 0;
   double _invulnerability = 0;
   double _blinkTimer = 0;
   bool _spriteVisible = true;
@@ -83,6 +85,7 @@ class Player extends ArtComponent {
     _move(dt);
     _updateTimers(dt);
     _updateFiring(dt);
+    _updateOrdnance(dt);
     _updateThruster(dt);
   }
 
@@ -129,6 +132,43 @@ class Player extends ArtComponent {
   /// Fires one volley immediately, ignoring the cooldown. Test hook.
   @visibleForTesting
   void forceFire() => _fire();
+
+  /// Launches the ship's heavy weapon immediately, if it has one. Test hook.
+  @visibleForTesting
+  void forceOrdnance() => _launchOrdnance();
+
+  /// Seconds until the next heavy weapon launch; 0 when ready or unarmed.
+  double get ordnanceCooldown => _ordnanceCooldown;
+
+  /// The heavy weapon fires on its own slow timer, independently of the
+  /// cannon, so it never competes with the main volley.
+  void _updateOrdnance(double dt) {
+    final spec = skin.ordnance;
+    if (spec == null) {
+      return;
+    }
+    _ordnanceCooldown -= dt;
+    if (_ordnanceCooldown <= 0) {
+      _launchOrdnance();
+      _ordnanceCooldown = spec.cooldown;
+    }
+  }
+
+  void _launchOrdnance() {
+    final spec = skin.ordnance;
+    if (spec == null) {
+      return;
+    }
+    game.audio.play(AudioManager.shootPlayer, volume: 0.7);
+    game.layer.add(
+      Ordnance(
+        position: Vector2(position.x, position.y - size.y * 0.3),
+        sprite: game.sprites[spec.asset],
+        burstSprite: game.sprites[spec.burstAsset],
+        spec: spec,
+      ),
+    );
+  }
 
   /// Emits one volley of the equipped ship's weapon: one bullet per barrel,
   /// each at its own muzzle offset and angle.
@@ -231,6 +271,10 @@ class Player extends ArtComponent {
         return 12;
       case EnemyType.tank:
         return 28;
+      case EnemyType.heavy:
+        return 22;
+      case EnemyType.assault:
+        return 34;
     }
   }
 

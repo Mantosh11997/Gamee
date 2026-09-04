@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flame/components.dart';
+import 'package:flutter/foundation.dart';
 
 import '../components/enemy.dart';
 import '../game/audio.dart';
@@ -138,17 +139,31 @@ class WaveManager extends Component with HasGameReference<SpaceShooterGame> {
     );
   }
 
-  /// Weighted pick. Wave 1 is all `basic` ships; `fast` joins at wave 2 and
-  /// `tank` at [GameConfig.firstTankWave], both growing more common after that
-  /// while plain enemies thin out.
+  /// Runs one weighted pick. Test hook for the "never spawns early" invariant.
+  @visibleForTesting
+  EnemyType debugPickType() => _pickType();
+
+  /// Weighted pick over the types unlocked by the current wave.
+  ///
+  /// Each type's earliest wave lives on its [EnemySpec] so the spawner and the
+  /// hangar's codex cannot disagree. Weight grows with the waves since a type
+  /// arrived, while plain raiders thin out.
   EnemyType _pickType() {
-    final weights = <EnemyType, double>{
-      EnemyType.basic: max(3.0, 10 - (wave - 1) * 0.45),
-      EnemyType.fast: wave >= 2 ? min(9.0, 3.5 + (wave - 2) * 1.1) : 0,
-      EnemyType.tank: wave >= GameConfig.firstTankWave
-          ? min(5.0, 1.2 + (wave - GameConfig.firstTankWave) * 0.55)
-          : 0,
-    };
+    final weights = <EnemyType, double>{};
+    for (final entry in EnemySpec.specs.entries) {
+      final spec = entry.value;
+      if (wave < spec.firstWave) {
+        continue;
+      }
+      final since = wave - spec.firstWave;
+      weights[entry.key] = switch (entry.key) {
+        EnemyType.basic => max(3.0, 10 - since * 0.45),
+        EnemyType.fast => min(9.0, 3.5 + since * 1.1),
+        EnemyType.tank => min(5.0, 1.2 + since * 0.55),
+        EnemyType.heavy => min(6.0, 1.5 + since * 0.7),
+        EnemyType.assault => min(4.0, 1.0 + since * 0.5),
+      };
+    }
 
     final total = weights.values.fold<double>(0, (sum, w) => sum + w);
     var roll = _rng.nextDouble() * total;

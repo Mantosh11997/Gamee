@@ -27,16 +27,43 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SRC = os.path.join(ROOT, "tool", "source_art")
 OUT = os.path.join(ROOT, "assets", "images")
 
-# name in source_art -> (output name, rotate 180?, longest output side, de-key light bg?)
+# (source, output, rotate 180?, longest output side, background key)
+#   key: None | "light" | "dark" | "luma"
 SPRITES = [
-    ("player_blue.png", "player.png", False, 256, False),
-    ("enemy_basic_red.png", "enemy_basic.png", True, 224, False),
-    ("enemy_fast_pink.png", "enemy_fast.png", True, 224, False),
-    ("enemy_tank_green.png", "enemy_tank.png", True, 288, True),
-    ("bullet_player_blue.png", "bullet_player.png", False, 192, False),
-    ("bullet_enemy_red.png", "bullet_enemy.png", True, 192, False),
-    ("powerup_health_green.png", "powerup_health.png", False, 192, False),
-    ("powerup_rapidfire_yellow.png", "powerup_rapidfire.png", False, 192, False),
+    # --- original set -------------------------------------------------------
+    ("player_blue.png", "player.png", False, 256, None),
+    ("enemy_basic_red.png", "enemy_basic.png", True, 224, None),
+    ("enemy_fast_pink.png", "enemy_fast.png", True, 224, None),
+    ("enemy_tank_green.png", "enemy_tank.png", True, 288, "light"),
+    ("bullet_player_blue.png", "bullet_player.png", False, 192, None),
+    ("bullet_enemy_red.png", "bullet_enemy.png", True, 192, None),
+    ("powerup_health_green.png", "powerup_health.png", False, 192, None),
+    ("powerup_rapidfire_yellow.png", "powerup_rapidfire.png", False, 192, None),
+
+    # --- heavy player hulls (drawn nose-up already) --------------------------
+    ("player_mk5_battlecruiser.png", "player_mk5.png", False, 320, None),
+    ("player_mk6_carrier.png", "player_mk6.png", False, 336, None),
+    ("player_mk7_superdreadnought.png", "player_mk7.png", False, 352, None),
+    ("player_titan.png", "player_titan.png", False, 384, None),
+
+    # --- player ordnance ----------------------------------------------------
+    ("bullet_player_ultra.png", "bullet_player_ultra.png", False, 224, None),
+    ("bullet_player_laser.png", "bullet_player_laser.png", False, 256, None),
+    ("missile_player_heavy.png", "missile_player_heavy.png", False, 224, None),
+    ("missile_player_cluster.png", "missile_player_cluster.png", False, 224, None),
+    # Both bombs are drawn falling nose-down; the player launches them upward.
+    ("bomb_player.png", "bomb_player.png", True, 208, None),
+    ("bomb_player_nuclear.png", "bomb_player_nuclear.png", True, 208, "dark"),
+
+    # --- effects: additive light, so alpha comes from brightness ------------
+    ("attack_atomic.png", "attack_atomic.png", False, 320, "luma"),
+    ("explosion_atomic.png", "explosion_atomic.png", False, 320, "luma"),
+    ("attack_nova.png", "attack_nova.png", False, 384, "luma"),
+    ("attack_beam.png", "attack_beam.png", False, 320, "luma"),
+
+    # --- heavy enemy hulls (drawn nose-up, rotated to fly down) -------------
+    ("enemy_heavy_red.png", "enemy_heavy.png", True, 256, None),
+    ("enemy_assault_red.png", "enemy_assault.png", True, 288, None),
 ]
 
 
@@ -50,6 +77,58 @@ def dilate(mask, radius=1):
         d[:, :-1] |= out[:, 1:]
         out = d
     return out
+
+
+def key_out_dark_background(im):
+    """Flood-fill a baked near-black backdrop in from the edges.
+
+    Mirror image of the light-background key: some art arrives matted onto
+    black rather than on real alpha.
+    """
+    rgb = np.array(im.convert("RGB")).astype(int)
+    h, w, _ = rgb.shape
+    dark = rgb.max(2) < 42
+
+    outside = np.zeros((h, w), bool)
+    queue = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            if dark[y, x] and not outside[y, x]:
+                outside[y, x] = True
+                queue.append((y, x))
+    for y in range(h):
+        for x in (0, w - 1):
+            if dark[y, x] and not outside[y, x]:
+                outside[y, x] = True
+                queue.append((y, x))
+    while queue:
+        y, x = queue.popleft()
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < h and 0 <= nx < w and not outside[ny, nx] and dark[ny, nx]:
+                outside[ny, nx] = True
+                queue.append((ny, nx))
+
+    alpha = np.full((h, w), 255, np.uint8)
+    alpha[outside] = 0
+    band = dilate(outside, 2) & ~outside
+    darkness = np.clip((62 - rgb.max(2)) / 40.0, 0, 1)
+    alpha[band] = (255 * (1 - darkness[band])).astype(np.uint8)
+    return Image.fromarray(np.dstack([rgb.astype(np.uint8), alpha]), "RGBA")
+
+
+def key_by_luminance(im, threshold=78):
+    """Turn a glow rendered on black into real alpha.
+
+    Explosions and beams are additive light: the correct alpha for them is
+    their own brightness, so black fringes vanish while the fire survives at
+    full strength. Existing alpha is respected - this only ever removes.
+    """
+    a = np.array(im.convert("RGBA")).astype(float)
+    luma = a[..., :3].max(2)
+    ramp = np.clip(luma / threshold, 0, 1)
+    a[..., 3] = a[..., 3] * ramp
+    return Image.fromarray(a.astype(np.uint8), "RGBA")
 
 
 def key_out_light_background(im):
@@ -121,10 +200,14 @@ def hull_box(im, density=0.45):
 def main():
     os.makedirs(OUT, exist_ok=True)
     print(f"{'sprite':22s} {'output px':>11s} {'w/h':>6s}   hull box (l,t,r,b as fractions)")
-    for src_name, out_name, rotate, longest, dekey in SPRITES:
+    for src_name, out_name, rotate, longest, key in SPRITES:
         im = Image.open(os.path.join(SRC, src_name)).convert("RGBA")
-        if dekey:
+        if key == "light":
             im = key_out_light_background(im)
+        elif key == "dark":
+            im = key_out_dark_background(im)
+        elif key == "luma":
+            im = key_by_luminance(im)
         im = trim(im)
         if rotate:
             im = im.rotate(180)

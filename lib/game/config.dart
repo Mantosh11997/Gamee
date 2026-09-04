@@ -102,6 +102,10 @@ class GameConfig {
   /// Tanks only join the mix from this wave onwards.
   static const int firstTankWave = 3;
 
+  /// The up-gunned hulls arrive later still.
+  static const int firstHeavyWave = 5;
+  static const int firstAssaultWave = 9;
+
   // -------------------------------------------------------------- power-ups --
 
   /// Chance that a killed enemy drops something.

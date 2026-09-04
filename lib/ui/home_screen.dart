@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../components/enemy.dart';
 import '../game/audio.dart';
 import '../game/config.dart';
 import '../game/player_profile.dart';
@@ -30,6 +31,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   late final PageController _pages;
   late int _selected;
+
+  /// Which half of the hangar is showing: your fleet, or the threat codex.
+  bool _showingHostiles = false;
 
   @override
   void initState() {
@@ -87,36 +91,26 @@ class _HomeScreenState extends State<HomeScreen> {
             return Column(
               children: <Widget>[
                 _TopBar(game: widget.game),
+                const _Title(),
+                _RecordRow(
+                  bestScore: profile.bestScore,
+                  bestWave: profile.bestWave,
+                ),
+                const SizedBox(height: 10),
+                _TabBar(
+                  showingHostiles: _showingHostiles,
+                  onChanged: (value) =>
+                      setState(() => _showingHostiles = value),
+                ),
                 Expanded(
-                  // Centre the block when it is shorter than the viewport, and
-                  // let it scroll on a short screen instead of overflowing.
-                  child: LayoutBuilder(
-                    builder: (context, constraints) => SingleChildScrollView(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(
-                          minHeight: constraints.maxHeight,
-                        ),
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: <Widget>[
-                            const _Title(),
-                            _RecordRow(
-                              bestScore: profile.bestScore,
-                              bestWave: profile.bestWave,
-                            ),
-                            const SizedBox(height: 12),
-                            SizedBox(height: 250, child: _buildCarousel()),
-                            const SizedBox(height: 12),
-                            _ShipDetail(skin: skin),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: _showingHostiles
+                      ? const _HostileCodex()
+                      : _buildFleet(skin),
                 ),
                 _ActionBar(
                   skin: skin,
                   profile: profile,
+                  hideShipActions: _showingHostiles,
                   onUnlock: () => _unlock(skin),
                   onEquip: () => _equip(skin),
                   onPlay: widget.game.startGame,
@@ -126,6 +120,34 @@ class _HomeScreenState extends State<HomeScreen> {
           },
         ),
       ),
+    );
+  }
+
+  Widget _buildFleet(ShipSkin skin) {
+    // Centre the block when it is shorter than the viewport, and let it scroll
+    // on a short screen instead of overflowing.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // The carousel gives up height first on a short screen, so the stats
+        // and weapon panels below it stay on screen instead of being pushed
+        // under the action bar.
+        final carousel = (constraints.maxHeight * 0.52).clamp(180.0, 258.0);
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: <Widget>[
+                const SizedBox(height: 6),
+                SizedBox(height: carousel, child: _buildCarousel()),
+                const SizedBox(height: 10),
+                _ShipDetail(skin: skin),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -338,6 +360,83 @@ class _Title extends StatelessWidget {
   }
 }
 
+/// Segmented switch between the player's fleet and the enemy codex.
+class _TabBar extends StatelessWidget {
+  const _TabBar({required this.showingHostiles, required this.onChanged});
+
+  final bool showingHostiles;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 0, 22, 0),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        ),
+        child: Row(
+          children: <Widget>[
+            _tab('FLEET', Icons.rocket_launch_rounded,
+                !showingHostiles, GameConfig.playerGlow, () => onChanged(false)),
+            _tab('HOSTILES', Icons.warning_amber_rounded,
+                showingHostiles, GameConfig.hpGood, () => onChanged(true)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _tab(
+    String label,
+    IconData icon,
+    bool active,
+    Color accent,
+    VoidCallback onTap,
+  ) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? accent.withValues(alpha: 0.18) : Colors.transparent,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: active ? accent.withValues(alpha: 0.7) : Colors.transparent,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Icon(
+                icon,
+                size: 15,
+                color: active ? accent : Colors.white.withValues(alpha: 0.45),
+              ),
+              const SizedBox(width: 7),
+              Text(
+                label,
+                style: TextStyle(
+                  color: active ? Colors.white : Colors.white.withValues(alpha: 0.5),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _RecordRow extends StatelessWidget {
   const _RecordRow({required this.bestScore, required this.bestWave});
 
@@ -418,7 +517,7 @@ class _ShipCard extends StatelessWidget {
                 children: <Widget>[
                   Positioned.fill(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 16, 14, 4),
+                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
                       child: ShipArt(skin: skin, dimmed: !owned),
                     ),
                   ),
@@ -429,21 +528,23 @@ class _ShipCard extends StatelessWidget {
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
               child: Column(
                 children: <Widget>[
-                  Text(
-                    skin.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 2,
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      skin.name,
+                      maxLines: 1,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.6,
+                      ),
                     ),
                   ),
-                  const SizedBox(height: 2),
+                  const SizedBox(height: 1),
                   Text(
                     skin.callsign,
                     maxLines: 1,
@@ -454,7 +555,7 @@ class _ShipCard extends StatelessWidget {
                       letterSpacing: 1.5,
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 4),
                   _RarityStars(rarity: skin.rarity, accent: skin.accent),
                 ],
               ),
@@ -702,8 +803,248 @@ class _ShipDetail extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           _WeaponPanel(skin: skin),
+          if (skin.ordnance != null) ...<Widget>[
+            const SizedBox(height: 8),
+            _OrdnancePanel(ordnance: skin.ordnance!),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// The ship's heavy secondary weapon, when it has one.
+class _OrdnancePanel extends StatelessWidget {
+  const _OrdnancePanel({required this.ordnance});
+
+  final OrdnanceSpec ordnance;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+      decoration: BoxDecoration(
+        color: ordnance.color.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: ordnance.color.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 30,
+            height: 46,
+            child: Image.asset(
+              'assets/images/${ordnance.asset}',
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stack) => Icon(
+                Icons.rocket_rounded,
+                color: ordnance.color,
+                size: 26,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Flexible(
+                      child: Text(
+                        ordnance.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: ordnance.color,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _Chip(
+                      label: '${ordnance.damage.toInt()} DMG',
+                      color: ordnance.color,
+                    ),
+                    const SizedBox(width: 4),
+                    _Chip(
+                      label: '${ordnance.cooldown.toStringAsFixed(1)}s',
+                      color: ordnance.color,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  ordnance.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.6),
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Small pill used for numeric call-outs.
+class _Chip extends StatelessWidget {
+  const _Chip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+/// Every hostile in the game, with the stats that matter and when it starts
+/// showing up. Browsable before you ever meet one.
+class _HostileCodex extends StatelessWidget {
+  const _HostileCodex();
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = EnemyType.values
+        .map((type) => MapEntry(type, EnemySpec.specs[type]!))
+        .toList()
+      ..sort((a, b) => a.value.firstWave.compareTo(b.value.firstWave));
+
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+      itemCount: entries.length,
+      separatorBuilder: (context, _) => const SizedBox(height: 10),
+      itemBuilder: (context, index) => _HostileCard(spec: entries[index].value),
+    );
+  }
+}
+
+class _HostileCard extends StatelessWidget {
+  const _HostileCard({required this.spec});
+
+  final EnemySpec spec;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        gradient: LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: <Color>[
+            spec.color.withValues(alpha: 0.16),
+            Colors.black.withValues(alpha: 0.35),
+          ],
+        ),
+        border: Border.all(color: spec.color.withValues(alpha: 0.35)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          SizedBox(
+            width: 62,
+            height: 62,
+            child: Image.asset(
+              'assets/images/${spec.asset}',
+              fit: BoxFit.contain,
+              errorBuilder: (context, error, stack) => Icon(
+                Icons.flight_rounded,
+                color: spec.color,
+                size: 34,
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        spec.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
+                    ),
+                    _Chip(
+                      label: 'WAVE ${spec.firstWave}+',
+                      color: spec.color,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  spec.description,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.62),
+                    fontSize: 11,
+                    height: 1.3,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 5,
+                  runSpacing: 5,
+                  children: <Widget>[
+                    _Chip(label: '${spec.maxHp.toInt()} HP', color: spec.color),
+                    _Chip(
+                      label: '${spec.speed.toInt()} SPD',
+                      color: spec.color,
+                    ),
+                    _Chip(label: '${spec.score} PTS', color: spec.color),
+                    if (spec.fireInterval != null)
+                      _Chip(
+                        label: 'FIRES ${spec.fireInterval!.toStringAsFixed(1)}s',
+                        color: spec.color,
+                      )
+                    else
+                      _Chip(label: 'NO GUNS', color: spec.color),
+                    if (spec.weaveAmplitude > 0)
+                      _Chip(label: 'WEAVES', color: spec.color),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -828,6 +1169,8 @@ class _WeaponPanel extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   weapon.description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.6),
                     fontSize: 11,
@@ -894,6 +1237,7 @@ class _ActionBar extends StatelessWidget {
   const _ActionBar({
     required this.skin,
     required this.profile,
+    required this.hideShipActions,
     required this.onUnlock,
     required this.onEquip,
     required this.onPlay,
@@ -901,6 +1245,9 @@ class _ActionBar extends StatelessWidget {
 
   final ShipSkin skin;
   final PlayerProfile profile;
+
+  /// The codex tab has no ship selected, so the unlock/equip row is dropped.
+  final bool hideShipActions;
   final VoidCallback onUnlock;
   final VoidCallback onEquip;
   final VoidCallback onPlay;
@@ -916,12 +1263,14 @@ class _ActionBar extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(22, 4, 22, 14),
       child: Column(
         children: <Widget>[
-          SizedBox(
-            height: 44,
-            width: double.infinity,
-            child: _secondaryButton(owned, equipped, canAfford, shortfall),
-          ),
-          const SizedBox(height: 10),
+          if (!hideShipActions) ...<Widget>[
+            SizedBox(
+              height: 44,
+              width: double.infinity,
+              child: _secondaryButton(owned, equipped, canAfford, shortfall),
+            ),
+            const SizedBox(height: 10),
+          ],
           SizedBox(
             height: 56,
             width: double.infinity,

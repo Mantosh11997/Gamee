@@ -10,7 +10,9 @@ import 'package:space_shooter/components/art_component.dart';
 import 'package:space_shooter/components/bullet.dart';
 import 'package:space_shooter/components/enemy.dart';
 import 'package:space_shooter/components/player.dart';
+import 'package:space_shooter/components/ordnance.dart';
 import 'package:space_shooter/components/powerup.dart';
+import 'package:space_shooter/components/sprite_burst.dart';
 import 'package:space_shooter/game/audio.dart';
 import 'package:space_shooter/game/player_profile.dart';
 import 'package:space_shooter/game/ship_skin.dart';
@@ -205,8 +207,30 @@ void main() {
         expect(game.sprites[name], isNotNull, reason: '$name should have loaded');
       }
 
-      // Skin art that has not been drawn yet. Absent is a supported state: the
-      // hangar and the game both fall back to code-drawn shapes.
+      // The heavy hulls, ordnance and effect art that arrived later.
+      for (final name in const <String>[
+        SpriteLibrary.playerMk5,
+        SpriteLibrary.playerMk6,
+        SpriteLibrary.playerMk7,
+        SpriteLibrary.playerTitan,
+        SpriteLibrary.bulletPlayerUltra,
+        SpriteLibrary.bulletPlayerLaser,
+        SpriteLibrary.missilePlayerHeavy,
+        SpriteLibrary.missilePlayerCluster,
+        SpriteLibrary.bombPlayer,
+        SpriteLibrary.bombPlayerNuclear,
+        SpriteLibrary.attackAtomic,
+        SpriteLibrary.explosionAtomic,
+        SpriteLibrary.attackNova,
+        SpriteLibrary.attackBeam,
+        SpriteLibrary.enemyHeavy,
+        SpriteLibrary.enemyAssault,
+      ]) {
+        expect(game.sprites[name], isNotNull, reason: '$name should have loaded');
+      }
+
+      // Mid-tier skin art that still has not been drawn. Absent is a supported
+      // state: the hangar and the game both fall back to code-drawn shapes.
       for (final name in const <String>[
         SpriteLibrary.playerMk2,
         SpriteLibrary.playerMk3,
@@ -571,6 +595,141 @@ void main() {
       await _tick(tester, 2);
       expect(game.state, PlayState.menu);
       expect(find.text('PLAY'), findsOneWidget);
+    });
+  });
+
+  group('Ordnance', () {
+    testWidgets('a heavy hull launches ordnance that splashes on impact',
+        (tester) async {
+      final game = await _bootGame(tester);
+      game.profile
+        ..addCoins(99999)
+        ..unlock(ShipCatalog.titan);
+      await tester.pump();
+      await tester.tap(find.text('PLAY'));
+      await _tick(tester, 3);
+
+      final player = game.player!;
+      expect(player.skin.hasOrdnance, isTrue);
+
+      // Two enemies close together: one takes the direct hit, the other is
+      // inside the blast.
+      final direct = Enemy(
+        type: EnemyType.basic,
+        position: Vector2(player.position.x, player.position.y - 120),
+        sprite: null,
+        speedMultiplier: 0.0001,
+        canShoot: false,
+      );
+      final splashed = Enemy(
+        type: EnemyType.basic,
+        position: Vector2(player.position.x + 30, player.position.y - 120),
+        sprite: null,
+        speedMultiplier: 0.0001,
+        canShoot: false,
+      );
+      game.layer.addAll(<Component>[direct, splashed]);
+      await _tick(tester, 2);
+
+      player.forceOrdnance();
+      await _tick(tester, 40);
+
+      // The warhead out-damages a raider several times over, so both die.
+      expect(direct.isMounted && !direct.isDying, isFalse);
+      expect(splashed.isMounted && !splashed.isDying, isFalse);
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('light hulls carry no ordnance and launch nothing',
+        (tester) async {
+      final game = await _startRun(tester);
+      final player = game.player!;
+
+      expect(player.skin.hasOrdnance, isFalse);
+      player.forceOrdnance();
+      await _tick(tester, 2);
+      expect(game.layer.children.whereType<Ordnance>(), isEmpty);
+    });
+
+    test('every ordnance spec is sane', () {
+      for (final skin in ShipCatalog.all) {
+        final ordnance = skin.ordnance;
+        if (ordnance == null) {
+          continue;
+        }
+        expect(ordnance.damage, greaterThan(0));
+        expect(ordnance.blastRadius, greaterThan(0));
+        expect(ordnance.cooldown, greaterThan(0));
+        expect(ordnance.speed, greaterThan(0));
+      }
+      // The ladder must actually escalate: the last hull is the strongest.
+      expect(ShipCatalog.all.last.maxHp, ShipCatalog.all
+          .map((s) => s.maxHp)
+          .reduce((a, b) => a > b ? a : b));
+      expect(ShipCatalog.all.last.hasOrdnance, isTrue);
+    });
+
+    testWidgets('a sprite burst cleans itself up', (tester) async {
+      final game = await _startRun(tester);
+      final burst = SpriteBurst(
+        position: Vector2.all(100),
+        radius: 40,
+        sprite: null,
+        color: const Color(0xFF7DF9FF),
+        duration: 0.2,
+      );
+      game.layer.add(burst);
+      await _tick(tester, 2);
+      expect(burst.isMounted, isTrue);
+
+      await _tick(tester, 20);
+      expect(burst.isMounted, isFalse, reason: 'it removes itself when done');
+    });
+  });
+
+  group('Hostile codex', () {
+    test('every enemy type has codex copy and a spawn wave', () {
+      final names = <String>{};
+      for (final type in EnemyType.values) {
+        final spec = EnemySpec.specs[type]!;
+        expect(spec.displayName, isNotEmpty);
+        expect(spec.description, isNotEmpty);
+        expect(spec.firstWave, greaterThanOrEqualTo(1));
+        expect(names.add(spec.displayName), isTrue,
+            reason: 'duplicate codex name ${spec.displayName}');
+      }
+    });
+
+    test('the spawner never picks a type before its first wave', () {
+      final waves = WaveManager()..reset();
+      for (var wave = 1; wave <= 30; wave++) {
+        waves.wave = wave;
+        for (var roll = 0; roll < 80; roll++) {
+          final spec = EnemySpec.specs[waves.debugPickType()]!;
+          expect(spec.firstWave, lessThanOrEqualTo(wave),
+              reason: 'picked ${spec.displayName} on wave $wave');
+        }
+      }
+    });
+
+    testWidgets('the hostiles tab lists every enemy', (tester) async {
+      await _bootGame(tester);
+
+      await tester.tap(find.text('HOSTILES'));
+      await _tick(tester, 4);
+
+      // The list scrolls, so check the early entries are rendered and that the
+      // ship actions are replaced by PLAY alone.
+      expect(find.text(EnemySpec.specs[EnemyType.basic]!.displayName),
+          findsOneWidget);
+      expect(find.text(EnemySpec.specs[EnemyType.fast]!.displayName),
+          findsOneWidget);
+      expect(find.textContaining('UNLOCK'), findsNothing);
+      expect(find.text('PLAY'), findsOneWidget);
+
+      await tester.tap(find.text('FLEET'));
+      await _tick(tester, 4);
+      expect(find.text(ShipCatalog.scout.name), findsOneWidget);
     });
   });
 }
