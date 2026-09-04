@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'game/space_shooter_game.dart';
+import 'ui/home_screen.dart';
 import 'ui/overlay_ids.dart';
 import 'ui/overlays.dart';
 
@@ -74,7 +75,7 @@ class _GameScreenState extends State<GameScreen> with WidgetsBindingObserver {
       body: GameWidget<SpaceShooterGame>(
         game: _game,
         overlayBuilderMap: <String, Widget Function(BuildContext, SpaceShooterGame)>{
-          Overlays.mainMenu: (context, game) => MainMenuOverlay(game: game),
+          Overlays.mainMenu: (context, game) => HomeScreen(game: game),
           Overlays.gameOver: (context, game) => GameOverOverlay(game: game),
           Overlays.pauseMenu: (context, game) => PauseOverlay(game: game),
           Overlays.pauseButton: (context, game) => PauseButtonOverlay(game: game),

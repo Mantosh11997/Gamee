@@ -11,20 +11,28 @@ import 'package:flutter/services.dart';
 /// no art at all, or with only some of the eight sprites in place.
 class SpriteLibrary {
   static const String player = 'player.png';
+  static const String playerMk2 = 'player_mk2.png';
+  static const String playerMk3 = 'player_mk3.png';
+  static const String playerMk4 = 'player_mk4.png';
   static const String enemyBasic = 'enemy_basic.png';
   static const String enemyFast = 'enemy_fast.png';
   static const String enemyTank = 'enemy_tank.png';
   static const String bulletPlayer = 'bullet_player.png';
+  static const String bulletPlayerHeavy = 'bullet_player_heavy.png';
   static const String bulletEnemy = 'bullet_enemy.png';
   static const String powerupHealth = 'powerup_health.png';
   static const String powerupRapidFire = 'powerup_rapidfire.png';
 
   static const List<String> all = <String>[
     player,
+    playerMk2,
+    playerMk3,
+    playerMk4,
     enemyBasic,
     enemyFast,
     enemyTank,
     bulletPlayer,
+    bulletPlayerHeavy,
     bulletEnemy,
     powerupHealth,
     powerupRapidFire,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../game/audio.dart';
 import '../game/config.dart';
+import '../game/ship_skin.dart';
 import '../game/sprite_library.dart';
 import 'art_component.dart';
 import 'bullet.dart';
@@ -18,14 +19,21 @@ import 'powerup.dart';
 /// HP with a short invulnerability + blink window after being hit, a code-drawn
 /// glow and a continuous particle thruster trail.
 class Player extends ArtComponent {
-  Player({required super.position, required super.sprite})
-    : super(
-        size: Vector2(GameConfig.playerWidth, GameConfig.playerHeight),
-        anchor: Anchor.center,
-        priority: 20,
-      );
+  Player({
+    required super.position,
+    required super.sprite,
+    required this.skin,
+  }) : hp = skin.maxHp,
+       super(
+         size: Vector2(skin.width, skin.height),
+         anchor: Anchor.center,
+         priority: 20,
+       );
 
-  double hp = GameConfig.playerMaxHp;
+  /// The equipped ship. Drives size, stats, weapon layout and glow colour.
+  final ShipSkin skin;
+
+  double hp;
 
   /// Seconds left on the rapid-fire buff (0 = inactive). Read by the HUD.
   double rapidFireRemaining = 0;
@@ -41,14 +49,18 @@ class Player extends ArtComponent {
     ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
   final Paint _shapePaint = Paint();
 
-  /// Current seconds between shots - the single knob that rapid-fire flips.
+  /// Current seconds between shots. Rapid fire overrides the ship's own
+  /// cadence entirely, so the buff feels the same on every hull.
   double get fireInterval => rapidFireRemaining > 0
       ? GameConfig.rapidFireInterval
-      : GameConfig.playerFireInterval;
+      : GameConfig.playerFireInterval * skin.weapon.fireIntervalMultiplier;
 
   bool get isInvulnerable => _invulnerability > 0;
 
-  double get hpRatio => (hp / GameConfig.playerMaxHp).clamp(0.0, 1.0);
+  double get hpRatio => (hp / skin.maxHp).clamp(0.0, 1.0);
+
+  /// Full health for the equipped ship, read by the HUD.
+  double get maxHp => skin.maxHp;
 
   @override
   Future<void> onLoad() async {
@@ -56,9 +68,9 @@ class Player extends ArtComponent {
     // plume at the bottom of the sprite.
     add(
       hitboxFor(
-        widthFactor: GameConfig.playerHitboxWidth,
-        heightFactor: GameConfig.playerHitboxHeight,
-        centerY: GameConfig.playerHitboxCenterY,
+        widthFactor: skin.hitboxWidth,
+        heightFactor: skin.hitboxHeight,
+        centerY: skin.hitboxCenterY,
       ),
     );
   }
@@ -77,7 +89,7 @@ class Player extends ArtComponent {
   void _move(double dt) {
     final delta = game.joystick.relativeDelta;
     if (!delta.isZero()) {
-      position.addScaled(delta, GameConfig.playerSpeed * dt);
+      position.addScaled(delta, skin.speed * dt);
     }
     // Keep the ship fully on screen.
     final halfWidth = size.x / 2;
@@ -114,15 +126,30 @@ class Player extends ArtComponent {
     }
   }
 
+  /// Fires one volley immediately, ignoring the cooldown. Test hook.
+  @visibleForTesting
+  void forceFire() => _fire();
+
+  /// Emits one volley of the equipped ship's weapon: one bullet per barrel,
+  /// each at its own muzzle offset and angle.
   void _fire() {
     game.audio.playShot(volume: 0.45);
-    final muzzle = Vector2(position.x, position.y - size.y * 0.42);
-    game.layer.add(
-      PlayerBullet(
-        position: muzzle,
-        sprite: game.sprites[SpriteLibrary.bulletPlayer],
-      ),
-    );
+    final weapon = skin.weapon;
+    final bulletSprite = game.sprites[weapon.bulletAsset] ??
+        game.sprites[SpriteLibrary.bulletPlayer];
+    final muzzleY = position.y - size.y * 0.42;
+
+    for (final barrel in weapon.barrels) {
+      game.layer.add(
+        PlayerBullet(
+          position: Vector2(position.x + barrel.offset * size.x, muzzleY),
+          sprite: bulletSprite,
+          damage: GameConfig.playerBulletDamage * weapon.damageMultiplier,
+          color: weapon.bulletColor,
+          angleDegrees: barrel.angle,
+        ),
+      );
+    }
   }
 
   void _updateThruster(double dt) {
@@ -157,7 +184,7 @@ class Player extends ArtComponent {
   }
 
   void heal(double amount) {
-    hp = min(GameConfig.playerMaxHp, hp + amount);
+    hp = min(skin.maxHp, hp + amount);
   }
 
   void grantRapidFire(double seconds) {
@@ -168,7 +195,7 @@ class Player extends ArtComponent {
     game.layer.add(
       Effects.explosion(
         absoluteCenter,
-        color: GameConfig.playerGlow,
+        color: skin.accent,
         count: 40,
         speed: 240,
         lifespan: 0.8,
@@ -225,7 +252,7 @@ class Player extends ArtComponent {
     final pulse = 0.85 + 0.15 * sin(_age * 4);
     final color = rapidFireRemaining > 0
         ? GameConfig.rapidFireColor
-        : GameConfig.playerGlow;
+        : skin.accent;
     _glowPaint.color = color.withValues(alpha: 0.38 * pulse);
     canvas.drawCircle(
       Offset(size.x / 2, size.y * 0.55),
@@ -250,7 +277,7 @@ class Player extends ArtComponent {
       ..close();
     canvas.drawPath(hull, _shapePaint);
 
-    _shapePaint.color = GameConfig.playerGlow;
+    _shapePaint.color = skin.accent;
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(w * 0.5, h * 0.42),

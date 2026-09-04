@@ -5,12 +5,16 @@ import 'package:flame/components.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:space_shooter/components/art_component.dart';
 import 'package:space_shooter/components/bullet.dart';
 import 'package:space_shooter/components/enemy.dart';
 import 'package:space_shooter/components/player.dart';
 import 'package:space_shooter/components/powerup.dart';
 import 'package:space_shooter/game/audio.dart';
+import 'package:space_shooter/game/player_profile.dart';
+import 'package:space_shooter/game/ship_skin.dart';
+import 'package:space_shooter/ui/home_screen.dart';
 import 'package:space_shooter/game/config.dart';
 import 'package:space_shooter/game/sprite_library.dart';
 import 'package:space_shooter/game/space_shooter_game.dart';
@@ -57,7 +61,7 @@ Future<SpaceShooterGame> _bootGame(WidgetTester tester) async {
           game: game,
           overlayBuilderMap:
               <String, Widget Function(BuildContext, SpaceShooterGame)>{
-                Overlays.mainMenu: (context, game) => MainMenuOverlay(game: game),
+                Overlays.mainMenu: (context, game) => HomeScreen(game: game),
                 Overlays.gameOver: (context, game) => GameOverOverlay(game: game),
                 Overlays.pauseMenu: (context, game) => PauseOverlay(game: game),
                 Overlays.pauseButton: (context, game) =>
@@ -73,10 +77,19 @@ Future<SpaceShooterGame> _bootGame(WidgetTester tester) async {
   return game;
 }
 
+/// Swipes the hangar carousel one ship to the right and lets it snap.
+///
+/// `pumpAndSettle` is unusable here: the Flame game rendering behind the
+/// overlay schedules frames forever, so it would always time out.
+Future<void> _swipeToNextShip(WidgetTester tester) async {
+  await tester.drag(find.byType(PageView), const Offset(-300, 0));
+  await _tick(tester, 45);
+}
+
 /// Boots the game and taps through the title screen into a live run.
 Future<SpaceShooterGame> _startRun(WidgetTester tester) async {
   final game = await _bootGame(tester);
-  await tester.tap(find.text('TAP TO PLAY'));
+  await tester.tap(find.text('PLAY'));
   await _tick(tester, 3);
   return game;
 }
@@ -85,6 +98,10 @@ void main() {
   // The audio plugin has no platform behind it under `flutter test`; leave it
   // switched off so nothing reaches audioplayers.
   setUpAll(() => AudioManager.enabled = false);
+
+  // The profile persists through shared_preferences; give every test a clean,
+  // in-memory store so unlocks and coins never leak between them.
+  setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
 
   group('AudioManager', () {
     test('is inert and mutable while the plugin is unavailable', () async {
@@ -167,15 +184,36 @@ void main() {
       expect(game.state, PlayState.menu);
       expect(game.player, isNull);
       expect(game.joystick.visible, isFalse);
-      expect(find.text('TAP TO PLAY'), findsOneWidget);
+      expect(find.text('PLAY'), findsOneWidget);
     });
 
-    testWidgets('loads every shipped sprite', (tester) async {
+    testWidgets('loads the shipped sprites and tolerates the missing ones',
+        (tester) async {
       final game = await _bootGame(tester);
 
-      expect(game.sprites.missing, isEmpty);
-      for (final name in SpriteLibrary.all) {
+      // Art that is in the repo today.
+      for (final name in const <String>[
+        SpriteLibrary.player,
+        SpriteLibrary.enemyBasic,
+        SpriteLibrary.enemyFast,
+        SpriteLibrary.enemyTank,
+        SpriteLibrary.bulletPlayer,
+        SpriteLibrary.bulletEnemy,
+        SpriteLibrary.powerupHealth,
+        SpriteLibrary.powerupRapidFire,
+      ]) {
         expect(game.sprites[name], isNotNull, reason: '$name should have loaded');
+      }
+
+      // Skin art that has not been drawn yet. Absent is a supported state: the
+      // hangar and the game both fall back to code-drawn shapes.
+      for (final name in const <String>[
+        SpriteLibrary.playerMk2,
+        SpriteLibrary.playerMk3,
+        SpriteLibrary.playerMk4,
+        SpriteLibrary.bulletPlayerHeavy,
+      ]) {
+        expect(game.sprites[name], isNull, reason: '$name is not drawn yet');
       }
       expect(tester.takeException(), isNull);
     });
@@ -185,10 +223,10 @@ void main() {
 
       expect(game.state, PlayState.playing);
       expect(game.player, isNotNull);
-      expect(game.player!.hp, GameConfig.playerMaxHp);
+      expect(game.player!.hp, game.player!.maxHp);
       expect(game.waves.wave, 1);
       expect(game.joystick.visible, isTrue);
-      expect(find.text('TAP TO PLAY'), findsNothing);
+      expect(find.text('PLAY'), findsNothing);
     });
 
     testWidgets('the mute toggle flips the audio manager and its icon',
@@ -236,7 +274,7 @@ void main() {
       final game = await _startRun(tester);
       game.addScore(123);
 
-      game.player!.takeDamage(GameConfig.playerMaxHp);
+      game.player!.takeDamage(game.player!.maxHp);
       await _tick(tester, 2);
 
       expect(game.state, PlayState.gameOver);
@@ -250,7 +288,7 @@ void main() {
       expect(game.state, PlayState.playing);
       expect(game.score, 0);
       expect(game.waves.wave, 1);
-      expect(game.player!.hp, GameConfig.playerMaxHp);
+      expect(game.player!.hp, game.player!.maxHp);
       expect(game.hasLiveEnemies, isFalse, reason: 'the field is wiped clean');
     });
 
@@ -259,13 +297,14 @@ void main() {
       final game = await _startRun(tester);
       final player = game.player!;
 
+      final full = player.maxHp;
       player.takeDamage(10);
-      expect(player.hp, GameConfig.playerMaxHp - 10);
+      expect(player.hp, full - 10);
       expect(player.isInvulnerable, isTrue);
 
       // A second hit inside the grace window is ignored.
       player.takeDamage(10);
-      expect(player.hp, GameConfig.playerMaxHp - 10);
+      expect(player.hp, full - 10);
     });
 
     testWidgets('rapid fire shortens the firing interval', (tester) async {
@@ -283,13 +322,13 @@ void main() {
       final player = game.player!;
 
       player.takeDamage(90);
-      expect(player.hp, GameConfig.playerMaxHp - 90);
+      expect(player.hp, player.maxHp - 90);
 
       player.heal(GameConfig.healthRestore);
-      expect(player.hp, GameConfig.playerMaxHp - 90 + GameConfig.healthRestore);
+      expect(player.hp, player.maxHp - 90 + GameConfig.healthRestore);
 
       player.heal(1000);
-      expect(player.hp, GameConfig.playerMaxHp);
+      expect(player.hp, player.maxHp);
     });
 
     testWidgets('every entity also renders through the real sprite path',
@@ -303,7 +342,7 @@ void main() {
       final sprite = Sprite(image);
 
       final entities = <ArtComponent>[
-        Player(position: Vector2.all(50), sprite: sprite),
+        Player(position: Vector2.all(50), sprite: sprite, skin: ShipCatalog.scout),
         Enemy(
           type: EnemyType.tank,
           position: Vector2.all(50),
@@ -332,7 +371,7 @@ void main() {
     testWidgets('and through the code-drawn fallback when a PNG is missing',
         (tester) async {
       final entities = <ArtComponent>[
-        Player(position: Vector2.all(50), sprite: null),
+        Player(position: Vector2.all(50), sprite: null, skin: ShipCatalog.dreadnought),
         for (final type in EnemyType.values)
           Enemy(
             type: type,
@@ -355,6 +394,183 @@ void main() {
       }
       recorder.endRecording().dispose();
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Hangar and coins', () {
+    test('profile starts with the free ship only, and unlocking costs coins',
+        () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final profile = PlayerProfile();
+      await profile.load();
+
+      expect(profile.coins, 0);
+      expect(profile.isOwned(ShipCatalog.scout), isTrue);
+      expect(profile.isEquipped(ShipCatalog.scout), isTrue);
+      for (final skin in ShipCatalog.all.where((s) => !s.isFree)) {
+        expect(profile.isOwned(skin), isFalse, reason: '${skin.id} is locked');
+      }
+
+      // Too poor: the unlock is refused and nothing is spent.
+      expect(profile.unlock(ShipCatalog.interceptor), isFalse);
+      expect(profile.isOwned(ShipCatalog.interceptor), isFalse);
+      expect(profile.coins, 0);
+
+      profile.addCoins(ShipCatalog.interceptor.price);
+      expect(profile.unlock(ShipCatalog.interceptor), isTrue);
+      expect(profile.isOwned(ShipCatalog.interceptor), isTrue);
+      expect(profile.isEquipped(ShipCatalog.interceptor), isTrue,
+          reason: 'unlocking equips');
+      expect(profile.coins, 0, reason: 'the price was deducted');
+
+      // Buying twice must not double-charge.
+      profile.addCoins(1000);
+      expect(profile.unlock(ShipCatalog.interceptor), isFalse);
+      expect(profile.coins, 1000);
+    });
+
+    test('a locked ship can never be equipped', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final profile = PlayerProfile();
+      await profile.load();
+
+      expect(profile.equip(ShipCatalog.dreadnought), isFalse);
+      expect(profile.isEquipped(ShipCatalog.scout), isTrue);
+    });
+
+    test('a run pays out coins and records the best score', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final profile = PlayerProfile();
+      await profile.load();
+
+      final earned = profile.recordRun(score: 1200, wave: 6, kills: 40);
+      expect(earned, greaterThan(0));
+      expect(profile.coins, earned);
+      expect(profile.bestScore, 1200);
+      expect(profile.bestWave, 6);
+
+      // A worse run still pays, but does not lower the record.
+      profile.recordRun(score: 300, wave: 2, kills: 10);
+      expect(profile.bestScore, 1200);
+      expect(profile.bestWave, 6);
+      expect(profile.coins, greaterThan(earned));
+    });
+
+    test('coins and unlocks survive a reload', () async {
+      SharedPreferences.setMockInitialValues(<String, Object>{});
+      final first = PlayerProfile();
+      await first.load();
+      first.addCoins(5000);
+      first.unlock(ShipCatalog.destroyer);
+      await first.saved;
+
+      final second = PlayerProfile();
+      await second.load();
+      expect(second.isOwned(ShipCatalog.destroyer), isTrue);
+      expect(second.isEquipped(ShipCatalog.destroyer), isTrue);
+      expect(second.coins, 5000 - ShipCatalog.destroyer.price);
+    });
+
+    test('every catalogue entry is well formed', () {
+      final ids = <String>{};
+      for (final skin in ShipCatalog.all) {
+        expect(ids.add(skin.id), isTrue, reason: 'duplicate id ${skin.id}');
+        expect(skin.weapon.barrels, isNotEmpty);
+        expect(skin.rarity, inInclusiveRange(1, 4));
+        expect(ShipCatalog.byId(skin.id).id, skin.id);
+      }
+      expect(ShipCatalog.all.first.isFree, isTrue,
+          reason: 'the starter ship must be free');
+      expect(ShipCatalog.byId('nope').id, ShipCatalog.scout.id,
+          reason: 'an unknown id falls back to the starter');
+    });
+  });
+
+  group('Home screen', () {
+    testWidgets('shows every ship, locks the paid ones, and unlocks on tap',
+        (tester) async {
+      final game = await _bootGame(tester);
+      game.profile.addCoins(ShipCatalog.interceptor.price);
+      await tester.pump();
+
+      // The whole catalogue is browsable from the hangar.
+      expect(find.text(ShipCatalog.scout.name), findsOneWidget);
+      expect(find.byIcon(Icons.lock_rounded), findsWidgets,
+          reason: 'locked ships are badged');
+
+      // Swipe to the second ship and buy it.
+      await _swipeToNextShip(tester);
+      expect(find.text(ShipCatalog.interceptor.name), findsWidgets);
+
+      await tester.tap(find.textContaining('UNLOCK'));
+      await tester.pump();
+
+      expect(game.profile.isOwned(ShipCatalog.interceptor), isTrue);
+      expect(game.profile.coins, 0);
+    });
+
+    testWidgets('an unaffordable ship shows the shortfall and cannot be bought',
+        (tester) async {
+      final game = await _bootGame(tester);
+
+      await _swipeToNextShip(tester);
+
+      final button = find.textContaining('NEED');
+      expect(button, findsOneWidget);
+      await tester.tap(button);
+      await tester.pump();
+
+      expect(game.profile.isOwned(ShipCatalog.interceptor), isFalse);
+    });
+
+    testWidgets('the equipped ship is the one that flies', (tester) async {
+      final game = await _bootGame(tester);
+      game.profile
+        ..addCoins(9999)
+        ..unlock(ShipCatalog.dreadnought);
+      await tester.pump();
+
+      await tester.tap(find.text('PLAY'));
+      await _tick(tester, 3);
+
+      expect(game.player!.skin.id, ShipCatalog.dreadnought.id);
+      expect(game.player!.maxHp, ShipCatalog.dreadnought.maxHp);
+    });
+
+    testWidgets('each ship fires its own barrel count', (tester) async {
+      final game = await _bootGame(tester);
+      game.profile
+        ..addCoins(9999)
+        ..unlock(ShipCatalog.destroyer);
+      await tester.pump();
+      await tester.tap(find.text('PLAY'));
+      await _tick(tester, 3);
+
+      final before = game.layer.children.whereType<PlayerBullet>().length;
+      game.player!.forceFire();
+      await _tick(tester, 2);
+      final after = game.layer.children.whereType<PlayerBullet>().length;
+
+      expect(after - before, ShipCatalog.destroyer.weapon.shotCount);
+    });
+
+    testWidgets('game over pays out and returns to the hangar', (tester) async {
+      final game = await _bootGame(tester);
+      await tester.tap(find.text('PLAY'));
+      await _tick(tester, 3);
+
+      game.addScore(600);
+      game.player!.takeDamage(game.player!.maxHp);
+      await _tick(tester, 2);
+
+      expect(game.lastRunCoins, greaterThan(0));
+      expect(game.profile.coins, game.lastRunCoins);
+      expect(find.textContaining('COINS'), findsOneWidget);
+
+      await tester.tap(find.text('HANGAR'));
+      await _tick(tester, 2);
+      expect(game.state, PlayState.menu);
+      expect(find.text('PLAY'), findsOneWidget);
     });
   });
 }

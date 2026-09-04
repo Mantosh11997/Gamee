@@ -16,6 +16,7 @@ import '../managers/wave_manager.dart';
 import '../ui/overlay_ids.dart';
 import 'audio.dart';
 import 'config.dart';
+import 'player_profile.dart';
 import 'sprite_library.dart';
 
 /// High level game states. The Flutter overlays are driven off this.
@@ -45,6 +46,12 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
   /// Sound effects and music. Fails safe: if the audio plugin or the files are
   /// unavailable the game simply runs silent.
   final AudioManager audio = AudioManager();
+
+  /// Coins, owned ships and the equipped one - persisted between sessions.
+  final PlayerProfile profile = PlayerProfile();
+
+  /// Coins awarded by the run that just ended, shown on the game-over screen.
+  int lastRunCoins = 0;
 
   late final StarfieldBackground background;
   late final GameLayer layer;
@@ -86,6 +93,8 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     await sprites.loadAll(images);
     // Likewise for audio: this never throws, it just goes quiet.
     await audio.init();
+    // And for the saved profile: unavailable storage just means no persistence.
+    await profile.load();
 
     background = StarfieldBackground();
     layer = GameLayer();
@@ -166,6 +175,11 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
       return;
     }
     state = PlayState.gameOver;
+    lastRunCoins = profile.recordRun(
+      score: scores.score,
+      wave: waves.wave,
+      kills: scores.enemiesDestroyed,
+    );
     player = null;
     overlays.remove(Overlays.pauseButton);
     overlays.add(Overlays.gameOver);
@@ -201,9 +215,13 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     scores.reset();
     waves.reset();
 
+    final skin = profile.equipped;
     player = Player(
       position: Vector2(size.x / 2, size.y - GameConfig.playerBottomMargin),
-      sprite: sprites[SpriteLibrary.player],
+      // Falls back to the starter hull's art when a skin's PNG is missing, and
+      // to a code-drawn shape when even that is absent.
+      sprite: sprites[skin.asset] ?? sprites[SpriteLibrary.player],
+      skin: skin,
     );
     layer.add(player!);
   }

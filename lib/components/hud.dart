@@ -113,7 +113,7 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
 
     _hpText.render(
       canvas,
-      '${hp.ceil()} / ${GameConfig.playerMaxHp.toInt()}',
+      '${hp.ceil()} / ${(player?.maxHp ?? GameConfig.playerMaxHp).toInt()}',
       Vector2(rect.left + 10, rect.top + _hpBarHeight / 2),
       anchor: Anchor.centerLeft,
     );

@@ -24,7 +24,7 @@ The Android and iOS projects are generated and locked to portrait, and the art a
 are already in the repo — there is nothing to configure before the first run.
 
 ```bash
-flutter test         # 16 tests: lifecycle, difficulty ramp, combat rules, audio, both render paths
+flutter test         # 26 tests: lifecycle, difficulty ramp, combat, audio, hangar economy, both render paths
 flutter analyze      # clean
 flutter build apk --release
 flutter build ios --release
@@ -32,6 +32,38 @@ flutter build ios --release
 
 Platform floors are already satisfied: `audioplayers` needs Android minSdk 19 (Flutter's
 default is 24) and iOS 13 (the project targets 15).
+
+---
+
+## The hangar
+
+The home screen is a ship shop. Every hull in `ShipCatalog` is **browsable whether or not
+you own it** - art, stats and weapon are all on show behind the padlock, with the price on
+the card. Swipe the carousel, read the stats, unlock with coins, and the ship you equip is
+the one that flies.
+
+| Ship | Price | Weapon | Feel |
+| --- | --- | --- | --- |
+| Scout | free | Pulse Cannon ×1 | the starter: nimble, single bolt |
+| Interceptor | 400 | Twin Plasma ×2 | faster hull, two parallel barrels |
+| Destroyer | 1200 | Tri-Spread ×3 | heavier, angled fan, more damage |
+| Dreadnought | 3000 | Siege Battery ×5 | slowest, toughest, wide arc |
+
+**Coins** come from playing: `score / 12 + wave × 15 + kills × 2`, shown on the game-over
+screen and added to the balance in the top-right of the hangar. Coins, unlocked ships, the
+equipped ship and the best score persist through `shared_preferences` - and, like the audio
+and the sprites, degrade gracefully: if the store is unavailable the profile still works
+for the session and simply forgets on exit.
+
+Each ship's `WeaponSpec` is a list of `Barrel`s - a muzzle offset across the hull and an
+angle in degrees. `Player._fire()` walks that list, so a new weapon is data, not code, and
+the hangar's weapon panel draws the same volley the ship will actually fire. Adding a ship
+is one entry in `ShipCatalog.all` plus its PNG.
+
+Skin art is optional exactly like everything else: `player_mk2/3/4.png` and
+`bullet_player_heavy.png` are not in the repo yet, so those cards show a code-drawn
+silhouette and the ships fall back to the starter hull's sprite in-game. Drop the PNGs in
+and they appear with no code change.
 
 ---
 
@@ -113,7 +145,9 @@ lib/
 │  ├─ config.dart                ★ every tuning number in the game lives here
 │  ├─ space_shooter_game.dart    the FlameGame: component layout, states, score, screen shake
 │  ├─ sprite_library.dart        PNG loading with graceful fallback to placeholder shapes
-│  └─ audio.dart                 fail-safe SFX + music façade over flame_audio
+│  ├─ audio.dart                 fail-safe SFX + music façade over flame_audio
+│  ├─ ship_skin.dart             the ship catalogue: stats, prices, weapon layouts
+│  └─ player_profile.dart        coins, owned ships, equipped ship, best score (persisted)
 ├─ components/
 │  ├─ art_component.dart         SpriteComponent base that tolerates a missing sprite
 │  ├─ background.dart            gradient + nebulae + 3-layer looping parallax starfield

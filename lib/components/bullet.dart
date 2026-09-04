@@ -1,4 +1,6 @@
 import 'package:flame/components.dart';
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 import '../game/audio.dart';
@@ -19,14 +21,15 @@ abstract class Bullet extends ArtComponent {
     required super.position,
     required super.sprite,
     required super.size,
-    required this.velocityY,
+    required this.velocity,
     required this.damage,
     required this.glowColor,
     required this.hitboxCenterY,
   }) : super(anchor: Anchor.center, priority: 15);
 
-  /// Signed vertical speed in px/s. Negative travels up the screen.
-  final double velocityY;
+  /// Travel in px/s. Negative Y goes up the screen; angled shots carry an X
+  /// component too.
+  final Vector2 velocity;
   final double damage;
   final Color glowColor;
 
@@ -50,13 +53,24 @@ abstract class Bullet extends ArtComponent {
   @override
   void update(double dt) {
     super.update(dt);
-    position.y += velocityY * dt;
+    position.addScaled(velocity, dt);
 
-    // Cull once fully off either edge.
+    // Cull once fully outside the screen. Angled shots need the side edges
+    // checked as well as the top and bottom.
     final margin = size.y;
-    if (position.y < -margin || position.y > game.size.y + margin) {
+    if (position.y < -margin ||
+        position.y > game.size.y + margin ||
+        position.x < -margin ||
+        position.x > game.size.x + margin) {
       removeFromParent();
     }
+  }
+
+  /// Converts a muzzle angle (degrees, 0 = straight up, positive leans right)
+  /// into a velocity vector.
+  static Vector2 velocityFor(double degrees, double speed) {
+    final radians = degrees * pi / 180;
+    return Vector2(sin(radians) * speed, -cos(radians) * speed);
   }
 
   @override
@@ -117,14 +131,27 @@ abstract class Bullet extends ArtComponent {
 
 /// Fired by the player, travels up, damages enemies.
 class PlayerBullet extends Bullet {
-  PlayerBullet({required super.position, required super.sprite})
-    : super(
-        size: Vector2(GameConfig.playerBulletWidth, GameConfig.playerBulletHeight),
-        velocityY: -GameConfig.playerBulletSpeed,
-        damage: GameConfig.playerBulletDamage,
-        glowColor: GameConfig.playerBulletColor,
-        hitboxCenterY: GameConfig.playerBulletHitboxCenterY,
-      );
+  PlayerBullet({
+    required super.position,
+    required super.sprite,
+    super.damage = GameConfig.playerBulletDamage,
+    Color color = GameConfig.playerBulletColor,
+    double angleDegrees = 0,
+  }) : super(
+         size: Vector2(
+           GameConfig.playerBulletWidth,
+           GameConfig.playerBulletHeight,
+         ),
+         velocity: Bullet.velocityFor(
+           angleDegrees,
+           GameConfig.playerBulletSpeed,
+         ),
+         glowColor: color,
+         hitboxCenterY: GameConfig.playerBulletHitboxCenterY,
+       ) {
+    // Tilt the art (and with it the hitbox) to match the shot's heading.
+    angle = angleDegrees * pi / 180;
+  }
 
   @override
   void onCollisionStart(Set<Vector2> intersectionPoints, PositionComponent other) {
@@ -151,7 +178,7 @@ class EnemyBullet extends Bullet {
   EnemyBullet({required super.position, required super.sprite})
     : super(
         size: Vector2(GameConfig.enemyBulletWidth, GameConfig.enemyBulletHeight),
-        velocityY: GameConfig.enemyBulletSpeed,
+        velocity: Vector2(0, GameConfig.enemyBulletSpeed),
         damage: GameConfig.enemyBulletDamage,
         glowColor: GameConfig.enemyBulletColor,
         hitboxCenterY: GameConfig.enemyBulletHitboxCenterY,
