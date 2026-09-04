@@ -27,7 +27,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  static const double _viewportFraction = 0.66;
+  static const double _viewportFraction = 0.62;
 
   late final PageController _pages;
   late int _selected;
@@ -126,28 +126,17 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildFleet(ShipSkin skin) {
     // Centre the block when it is shorter than the viewport, and let it scroll
     // on a short screen instead of overflowing.
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // The carousel gives up height first on a short screen, so the stats
-        // and weapon panels below it stay on screen instead of being pushed
-        // under the action bar.
-        final carousel = (constraints.maxHeight * 0.52).clamp(180.0, 258.0);
-        return SingleChildScrollView(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(minHeight: constraints.maxHeight),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: <Widget>[
-                const SizedBox(height: 6),
-                SizedBox(height: carousel, child: _buildCarousel()),
-                const SizedBox(height: 10),
-                _ShipDetail(skin: skin),
-                const SizedBox(height: 8),
-              ],
-            ),
-          ),
-        );
-      },
+    // The detail block takes the height it needs and the carousel claims
+    // everything else, so the ship is drawn as large as the screen allows
+    // instead of floating in a fixed-height box with dead space around it.
+    return Column(
+      children: <Widget>[
+        const SizedBox(height: 6),
+        Expanded(child: _buildCarousel()),
+        const SizedBox(height: 8),
+        _ShipDetail(skin: skin),
+        const SizedBox(height: 8),
+      ],
     );
   }
 
@@ -338,15 +327,15 @@ class _Title extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 10, bottom: 4),
+      padding: const EdgeInsets.only(top: 6, bottom: 2),
       child: Text(
         'NEBULA STRIKE',
         textAlign: TextAlign.center,
         style: TextStyle(
           color: Colors.white,
-          fontSize: 30,
+          fontSize: 23,
           fontWeight: FontWeight.w900,
-          letterSpacing: 5,
+          letterSpacing: 4,
           shadows: <Shadow>[
             const Shadow(color: GameConfig.playerGlow, blurRadius: 22),
             Shadow(
@@ -513,22 +502,27 @@ class _ShipCard extends StatelessWidget {
           children: <Widget>[
             Expanded(
               child: Stack(
-                alignment: Alignment.center,
                 children: <Widget>[
                   Positioned.fill(
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+                      // Room at the top for the corner badges, none wasted at
+                      // the sides - the hull is the point of the card.
+                      padding: const EdgeInsets.fromLTRB(6, 30, 6, 2),
                       child: ShipArt(skin: skin, dimmed: !owned),
                     ),
                   ),
-                  if (!owned) _LockBadge(skin: skin),
+                  // Badges sit in the corners rather than over the ship, so a
+                  // locked hull is still fully visible - that is what makes it
+                  // worth saving up for.
+                  if (!owned)
+                    Positioned(top: 8, left: 8, child: _PriceTag(skin: skin)),
                   if (equipped)
-                    Positioned(top: 10, right: 10, child: _EquippedTag(skin: skin)),
+                    Positioned(top: 8, right: 8, child: _EquippedTag(skin: skin)),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(8, 0, 8, 10),
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
               child: Column(
                 children: <Widget>[
                   FittedBox(
@@ -538,9 +532,9 @@ class _ShipCard extends StatelessWidget {
                       maxLines: 1,
                       style: const TextStyle(
                         color: Colors.white,
-                        fontSize: 15,
+                        fontSize: 14,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 1.6,
+                        letterSpacing: 1.4,
                       ),
                     ),
                   ),
@@ -551,11 +545,11 @@ class _ShipCard extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: Colors.white.withValues(alpha: 0.5),
-                      fontSize: 10,
-                      letterSpacing: 1.5,
+                      fontSize: 9,
+                      letterSpacing: 1.3,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   _RarityStars(rarity: skin.rarity, accent: skin.accent),
                 ],
               ),
@@ -567,50 +561,44 @@ class _ShipCard extends StatelessWidget {
   }
 }
 
-/// Padlock and price stamped over a ship the player does not own yet.
-class _LockBadge extends StatelessWidget {
-  const _LockBadge({required this.skin});
+/// Padlock and price, tucked into the card's top-left corner.
+class _PriceTag extends StatelessWidget {
+  const _PriceTag({required this.skin});
 
   final ShipSkin skin;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: <Widget>[
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.55),
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white.withValues(alpha: 0.25)),
-          ),
-          child: const Icon(Icons.lock_rounded, color: Colors.white, size: 22),
+    return Container(
+      padding: const EdgeInsets.fromLTRB(7, 4, 10, 4),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: 0.62),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: GameConfig.rapidFireColor.withValues(alpha: 0.5),
         ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.6),
-            borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: <Widget>[
+          Icon(
+            Icons.lock_rounded,
+            size: 12,
+            color: Colors.white.withValues(alpha: 0.8),
           ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              const _CoinIcon(size: 14),
-              const SizedBox(width: 6),
-              Text(
-                '${skin.price}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
+          const SizedBox(width: 5),
+          const _CoinIcon(size: 13),
+          const SizedBox(width: 5),
+          Text(
+            '${skin.price}',
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -657,7 +645,7 @@ class _RarityStars extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 1),
             child: Icon(
               i < rarity ? Icons.star_rounded : Icons.star_outline_rounded,
-              size: 13,
+              size: 12,
               color: i < rarity ? accent : Colors.white.withValues(alpha: 0.22),
             ),
           ),
@@ -682,7 +670,7 @@ class ShipArt extends StatelessWidget {
     // PNG and the CustomPaint fallback fill the card instead of collapsing.
     return SizedBox.expand(
       child: Opacity(
-        opacity: dimmed ? 0.7 : 1,
+        opacity: dimmed ? 0.86 : 1,
         child: Stack(
           alignment: Alignment.center,
           children: <Widget>[
@@ -773,7 +761,7 @@ class _ShipDetail extends StatelessWidget {
                   accent: skin.accent,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               Expanded(
                 child: _StatBar(
                   label: 'SPEED',
@@ -781,11 +769,7 @@ class _ShipDetail extends StatelessWidget {
                   accent: skin.accent,
                 ),
               ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: <Widget>[
+              const SizedBox(width: 10),
               Expanded(
                 child: _StatBar(
                   label: 'POWER',
@@ -793,7 +777,7 @@ class _ShipDetail extends StatelessWidget {
                   accent: skin.accent,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 10),
               Expanded(
                 child: _StatBar(
                   label: 'RATE',
@@ -803,95 +787,8 @@ class _ShipDetail extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          _WeaponPanel(skin: skin),
-          if (skin.ordnance != null) ...<Widget>[
-            const SizedBox(height: 8),
-            _OrdnancePanel(ordnance: skin.ordnance!),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// The ship's heavy secondary weapon, when it has one.
-class _OrdnancePanel extends StatelessWidget {
-  const _OrdnancePanel({required this.ordnance});
-
-  final OrdnanceSpec ordnance;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
-      decoration: BoxDecoration(
-        color: ordnance.color.withValues(alpha: 0.07),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: ordnance.color.withValues(alpha: 0.30)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          SizedBox(
-            width: 30,
-            height: 46,
-            child: Image.asset(
-              'assets/images/${ordnance.asset}',
-              fit: BoxFit.contain,
-              errorBuilder: (context, error, stack) => Icon(
-                Icons.rocket_rounded,
-                color: ordnance.color,
-                size: 26,
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        ordnance.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: ordnance.color,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _Chip(
-                      label: '${ordnance.damage.toInt()} DMG',
-                      color: ordnance.color,
-                    ),
-                    const SizedBox(width: 4),
-                    _Chip(
-                      label: '${ordnance.cooldown.toStringAsFixed(1)}s',
-                      color: ordnance.color,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  ordnance.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    fontSize: 11,
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
+          const SizedBox(height: 10),
+          _LoadoutPanel(skin: skin),
         ],
       ),
     );
@@ -1071,12 +968,12 @@ class _StatBar extends StatelessWidget {
           label,
           style: TextStyle(
             color: Colors.white.withValues(alpha: 0.5),
-            fontSize: 9,
+            fontSize: 8,
             fontWeight: FontWeight.w700,
-            letterSpacing: 2,
+            letterSpacing: 1.4,
           ),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: TweenAnimationBuilder<double>(
@@ -1085,7 +982,7 @@ class _StatBar extends StatelessWidget {
             curve: Curves.easeOutCubic,
             builder: (context, t, _) => LinearProgressIndicator(
               value: t,
-              minHeight: 6,
+              minHeight: 5,
               backgroundColor: Colors.white.withValues(alpha: 0.10),
               valueColor: AlwaysStoppedAnimation<Color>(accent),
             ),
@@ -1096,92 +993,140 @@ class _StatBar extends StatelessWidget {
   }
 }
 
-/// The projectile the ship fires, plus what the weapon does.
-class _WeaponPanel extends StatelessWidget {
-  const _WeaponPanel({required this.skin});
+/// The ship's loadout: its cannon, and its heavy weapon when it has one.
+///
+/// One bordered block rather than two stacked panels - it reads as a single
+/// spec sheet and gives the carousel above it another ~30px of height.
+class _LoadoutPanel extends StatelessWidget {
+  const _LoadoutPanel({required this.skin});
 
   final ShipSkin skin;
 
   @override
   Widget build(BuildContext context) {
-    final weapon = skin.weapon;
+    final ordnance = skin.ordnance;
     return Container(
-      padding: const EdgeInsets.fromLTRB(12, 10, 14, 10),
+      padding: const EdgeInsets.fromLTRB(10, 8, 12, 8),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Column(
         children: <Widget>[
-          SizedBox(
-            width: 30,
-            height: 52,
-            child: CustomPaint(
-              painter: _VolleyPainter(
-                barrels: weapon.barrels,
-                color: weapon.bulletColor,
+          _LoadoutRow(
+            art: SizedBox(
+              width: 26,
+              height: 34,
+              child: CustomPaint(
+                painter: _VolleyPainter(
+                  barrels: skin.weapon.barrels,
+                  color: skin.weapon.bulletColor,
+                ),
               ),
             ),
+            title: skin.weapon.name,
+            description: skin.weapon.description,
+            color: skin.weapon.bulletColor,
+            chips: <String>['×${skin.weapon.shotCount}'],
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                Row(
-                  children: <Widget>[
-                    Flexible(
-                      child: Text(
-                        weapon.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: weapon.bulletColor,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: weapon.bulletColor.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        '×${weapon.shotCount}',
-                        style: TextStyle(
-                          color: weapon.bulletColor,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    ),
-                  ],
+          if (ordnance != null) ...<Widget>[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Divider(
+                height: 1,
+                thickness: 1,
+                color: Colors.white.withValues(alpha: 0.08),
+              ),
+            ),
+            _LoadoutRow(
+              art: SizedBox(
+                width: 26,
+                height: 34,
+                child: Image.asset(
+                  'assets/images/${ordnance.asset}',
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stack) =>
+                      Icon(Icons.rocket_rounded, color: ordnance.color, size: 22),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  weapon.description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.6),
-                    fontSize: 11,
-                    height: 1.3,
-                  ),
-                ),
+              ),
+              title: ordnance.name,
+              description: ordnance.description,
+              color: ordnance.color,
+              chips: <String>[
+                '${ordnance.damage.toInt()} DMG',
+                '${ordnance.cooldown.toStringAsFixed(1)}s',
               ],
             ),
-          ),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _LoadoutRow extends StatelessWidget {
+  const _LoadoutRow({
+    required this.art,
+    required this.title,
+    required this.description,
+    required this.color,
+    required this.chips,
+  });
+
+  final Widget art;
+  final String title;
+  final String description;
+  final Color color;
+  final List<String> chips;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: <Widget>[
+        art,
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: <Widget>[
+              Row(
+                children: <Widget>[
+                  Flexible(
+                    child: Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
+                  ),
+                  for (final chip in chips) ...<Widget>[
+                    const SizedBox(width: 5),
+                    _Chip(label: chip, color: color),
+                  ],
+                ],
+              ),
+              const SizedBox(height: 2),
+              Text(
+                description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.58),
+                  fontSize: 10.5,
+                  height: 1.25,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
