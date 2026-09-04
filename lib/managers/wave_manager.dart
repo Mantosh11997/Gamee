@@ -157,11 +157,18 @@ class WaveManager extends Component with HasGameReference<SpaceShooterGame> {
       }
       final since = wave - spec.firstWave;
       weights[entry.key] = switch (entry.key) {
-        EnemyType.basic => max(3.0, 10 - since * 0.45),
-        EnemyType.fast => min(9.0, 3.5 + since * 1.1),
+        EnemyType.basic => max(2.0, 10 - since * 0.55),
+        EnemyType.fast => max(2.0, min(9.0, 3.5 + since * 1.1) - since * 0.35),
         EnemyType.tank => min(5.0, 1.2 + since * 0.55),
         EnemyType.heavy => min(6.0, 1.5 + since * 0.7),
         EnemyType.assault => min(4.0, 1.0 + since * 0.5),
+        EnemyType.basicElite => min(6.0, 1.5 + since * 0.6),
+        EnemyType.fastElite => min(5.0, 1.2 + since * 0.55),
+        EnemyType.tankElite => min(3.5, 0.8 + since * 0.35),
+        EnemyType.bomber => min(3.5, 0.9 + since * 0.35),
+        EnemyType.drone => min(4.5, 1.2 + since * 0.45),
+        // Deliberately rare: one shows up every few waves, not every wave.
+        EnemyType.boss => min(1.2, 0.35 + since * 0.08),
       };
     }
 

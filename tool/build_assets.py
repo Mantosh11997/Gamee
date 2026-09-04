@@ -61,6 +61,25 @@ SPRITES = [
     ("attack_nova.png", "attack_nova.png", False, 384, "luma"),
     ("attack_beam.png", "attack_beam.png", False, 320, "luma"),
 
+    # --- the three mid-tier hulls ------------------------------------------
+    ("player_mk2_interceptor.png", "player_mk2.png", False, 288, None),
+    ("player_mk3_destroyer.png", "player_mk3.png", False, 304, "checker"),
+    ("player_mk4_dreadnought.png", "player_mk4.png", False, 320, "checker"),
+    ("bullet_player_heavy_blue.png", "bullet_player_heavy.png", False, 224, None),
+    ("missile_player_blue.png", "missile_player.png", False, 224, "checker"),
+
+    # --- elite and specialist hostiles (drawn nose-up, rotated to fly down) --
+    ("enemy_basic_elite_red.png", "enemy_basic_elite.png", True, 240, "checker"),
+    ("enemy_fast_elite_pink.png", "enemy_fast_elite.png", True, 240, "checker"),
+    ("enemy_tank_elite_green.png", "enemy_tank_elite.png", True, 288, "checker"),
+    ("enemy_bomber_yellow.png", "enemy_bomber.png", True, 272, "checker"),
+    # Radially symmetric, so rotating it would change nothing.
+    ("enemy_drone_red.png", "enemy_drone.png", False, 240, None),
+    ("enemy_boss_red.png", "enemy_boss.png", True, 384, "checker"),
+    ("bullet_enemy_heavy_red.png", "bullet_enemy_heavy.png", True, 208, "checker"),
+
+    ("powerup_evolution_core.png", "powerup_evolution.png", False, 208, None),
+
     # --- heavy enemy hulls (drawn nose-up, rotated to fly down) -------------
     ("enemy_heavy_red.png", "enemy_heavy.png", True, 256, None),
     ("enemy_assault_red.png", "enemy_assault.png", True, 288, None),
@@ -114,6 +133,51 @@ def key_out_dark_background(im):
     band = dilate(outside, 2) & ~outside
     darkness = np.clip((62 - rgb.max(2)) / 40.0, 0, 1)
     alpha[band] = (255 * (1 - darkness[band])).astype(np.uint8)
+    return Image.fromarray(np.dstack([rgb.astype(np.uint8), alpha]), "RGBA")
+
+
+def key_out_checker_background(im):
+    """Remove a transparency checkerboard that was flattened into the pixels.
+
+    Stock-style exports arrive matted onto a grey/white checker. Keying on
+    colour rather than brightness is what makes this safe: the checker is
+    greyscale at every luminance, while the ships are saturated, so
+    "unsaturated and light" identifies the backdrop without touching the art.
+    Only the region connected to the border is removed, so the silver panels
+    and dark outlines inside the hull survive.
+    """
+    rgb = np.array(im.convert("RGB")).astype(int)
+    h, w, _ = rgb.shape
+    saturation = rgb.max(2) - rgb.min(2)
+    backdrop = (saturation < 22) & (rgb.max(2) > 100)
+
+    outside = np.zeros((h, w), bool)
+    queue = deque()
+    for x in range(w):
+        for y in (0, h - 1):
+            if backdrop[y, x] and not outside[y, x]:
+                outside[y, x] = True
+                queue.append((y, x))
+    for y in range(h):
+        for x in (0, w - 1):
+            if backdrop[y, x] and not outside[y, x]:
+                outside[y, x] = True
+                queue.append((y, x))
+    while queue:
+        y, x = queue.popleft()
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            ny, nx = y + dy, x + dx
+            if 0 <= ny < h and 0 <= nx < w and not outside[ny, nx] and backdrop[ny, nx]:
+                outside[ny, nx] = True
+                queue.append((ny, nx))
+
+    alpha = np.full((h, w), 255, np.uint8)
+    alpha[outside] = 0
+    # Feather the cut: an edge pixel that is still nearly greyscale is mostly
+    # backdrop bleeding into the outline, so fade it out proportionally.
+    band = dilate(outside, 2) & ~outside
+    greyness = np.clip((26 - saturation) / 26.0, 0, 1)
+    alpha[band] = (255 * (1 - greyness[band])).astype(np.uint8)
     return Image.fromarray(np.dstack([rgb.astype(np.uint8), alpha]), "RGBA")
 
 
@@ -208,6 +272,8 @@ def main():
             im = key_out_dark_background(im)
         elif key == "luma":
             im = key_by_luminance(im)
+        elif key == "checker":
+            im = key_out_checker_background(im)
         im = trim(im)
         if rotate:
             im = im.rotate(180)

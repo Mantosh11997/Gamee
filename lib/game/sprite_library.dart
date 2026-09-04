@@ -23,12 +23,19 @@ class SpriteLibrary {
   static const String enemyTank = 'enemy_tank.png';
   static const String enemyHeavy = 'enemy_heavy.png';
   static const String enemyAssault = 'enemy_assault.png';
+  static const String enemyBasicElite = 'enemy_basic_elite.png';
+  static const String enemyFastElite = 'enemy_fast_elite.png';
+  static const String enemyTankElite = 'enemy_tank_elite.png';
+  static const String enemyBomber = 'enemy_bomber.png';
+  static const String enemyDrone = 'enemy_drone.png';
+  static const String enemyBoss = 'enemy_boss.png';
   static const String bulletPlayer = 'bullet_player.png';
   static const String bulletPlayerHeavy = 'bullet_player_heavy.png';
   static const String bulletPlayerUltra = 'bullet_player_ultra.png';
   static const String bulletPlayerLaser = 'bullet_player_laser.png';
 
   // Ordnance: the slow, heavy, splash-damage weapons.
+  static const String missilePlayer = 'missile_player.png';
   static const String missilePlayerHeavy = 'missile_player_heavy.png';
   static const String missilePlayerCluster = 'missile_player_cluster.png';
   static const String bombPlayer = 'bomb_player.png';
@@ -40,8 +47,10 @@ class SpriteLibrary {
   static const String attackNova = 'attack_nova.png';
   static const String attackBeam = 'attack_beam.png';
   static const String bulletEnemy = 'bullet_enemy.png';
+  static const String bulletEnemyHeavy = 'bullet_enemy_heavy.png';
   static const String powerupHealth = 'powerup_health.png';
   static const String powerupRapidFire = 'powerup_rapidfire.png';
+  static const String powerupEvolution = 'powerup_evolution.png';
 
   static const List<String> all = <String>[
     player,
@@ -57,10 +66,17 @@ class SpriteLibrary {
     enemyTank,
     enemyHeavy,
     enemyAssault,
+    enemyBasicElite,
+    enemyFastElite,
+    enemyTankElite,
+    enemyBomber,
+    enemyDrone,
+    enemyBoss,
     bulletPlayer,
     bulletPlayerHeavy,
     bulletPlayerUltra,
     bulletPlayerLaser,
+    missilePlayer,
     missilePlayerHeavy,
     missilePlayerCluster,
     bombPlayer,
@@ -70,8 +86,10 @@ class SpriteLibrary {
     attackNova,
     attackBeam,
     bulletEnemy,
+    bulletEnemyHeavy,
     powerupHealth,
     powerupRapidFire,
+    powerupEvolution,
   ];
 
   final Map<String, Sprite?> _sprites = <String, Sprite?>{};

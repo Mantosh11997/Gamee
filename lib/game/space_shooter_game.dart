@@ -248,9 +248,17 @@ class SpaceShooterGame extends FlameGame with HasCollisionDetection {
     }
     final double hpRatio = player?.hpRatio ?? 1;
     final hurt = hpRatio < 0.5;
-    final type = rng.nextDouble() < (hurt ? 0.65 : 0.4)
-        ? PowerupType.health
-        : PowerupType.rapidFire;
+    // Health is weighted up when the player is low so comebacks are possible;
+    // overdrive is the rare one.
+    final roll = rng.nextDouble();
+    final PowerupType type;
+    if (roll < (hurt ? 0.60 : 0.36)) {
+      type = PowerupType.health;
+    } else if (roll < (hurt ? 0.85 : 0.74)) {
+      type = PowerupType.rapidFire;
+    } else {
+      type = PowerupType.overdrive;
+    }
 
     layer.add(
       Powerup(

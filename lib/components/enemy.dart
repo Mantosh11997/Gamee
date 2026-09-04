@@ -12,7 +12,25 @@ import 'bullet.dart';
 import 'effects.dart';
 
 /// The three enemy archetypes.
-enum EnemyType { basic, fast, tank, heavy, assault }
+enum EnemyType {
+  basic,
+  fast,
+  tank,
+  heavy,
+  assault,
+  basicElite,
+  fastElite,
+  tankElite,
+  bomber,
+  drone,
+  boss,
+}
+
+/// The code-drawn silhouette an enemy falls back to when its PNG is missing.
+///
+/// Several archetypes share a body plan - an elite raider is a raider with
+/// better guns - so shapes are a small closed set rather than one per type.
+enum EnemyShape { raider, dart, hulk, gunship, bomber, orb }
 
 /// Immutable per-type stats. Add a new archetype by adding an enum value and
 /// an entry in [EnemySpec.specs] - the spawner picks types up automatically.
@@ -31,7 +49,10 @@ class EnemySpec {
     required this.hitboxHeight,
     required this.hitboxCenterY,
     required this.firstWave,
+    required this.shape,
     this.fireInterval,
+    this.bulletAsset = SpriteLibrary.bulletEnemy,
+    this.bulletDamage = GameConfig.enemyBulletDamage,
     this.weaveAmplitude = 0,
     this.weaveFrequency = 0,
   });
@@ -62,8 +83,15 @@ class EnemySpec {
   /// hangar's codex reports it, so there is one source of truth.
   final int firstWave;
 
+  /// Which placeholder body plan to draw with no art. See [EnemyShape].
+  final EnemyShape shape;
+
   /// Seconds between shots, or null for an enemy that never shoots.
   final double? fireInterval;
+
+  /// Projectile art and punch. The big hulls throw something heavier.
+  final String bulletAsset;
+  final double bulletDamage;
 
   /// Horizontal sine-wave weave, in pixels (0 = flies straight down).
   final double weaveAmplitude;
@@ -92,6 +120,7 @@ class EnemySpec {
       hitboxHeight: 0.62,
       hitboxCenterY: 0.62,
       firstWave: 1,
+      shape: EnemyShape.raider,
     ),
     EnemyType.fast: EnemySpec(
       displayName: 'STINGER',
@@ -109,6 +138,7 @@ class EnemySpec {
       hitboxHeight: 0.58,
       hitboxCenterY: 0.62,
       firstWave: 2,
+      shape: EnemyShape.dart,
     ),
     EnemyType.tank: EnemySpec(
       displayName: 'HULK',
@@ -125,6 +155,7 @@ class EnemySpec {
       hitboxHeight: 0.68,
       hitboxCenterY: 0.56,
       firstWave: GameConfig.firstTankWave,
+      shape: EnemyShape.hulk,
     ),
     EnemyType.heavy: EnemySpec(
       displayName: 'HEAVY RAIDER',
@@ -141,6 +172,7 @@ class EnemySpec {
       hitboxHeight: 0.62,
       hitboxCenterY: 0.58,
       firstWave: GameConfig.firstHeavyWave,
+      shape: EnemyShape.raider,
     ),
     EnemyType.assault: EnemySpec(
       displayName: 'ASSAULT CRUISER',
@@ -159,6 +191,122 @@ class EnemySpec {
       hitboxHeight: 0.60,
       hitboxCenterY: 0.56,
       firstWave: GameConfig.firstAssaultWave,
+      shape: EnemyShape.gunship,
+    ),
+
+    // ---- elite variants: the same body plans, up-gunned -------------------
+    EnemyType.basicElite: EnemySpec(
+      displayName: 'CRIMSON ACE',
+      description: 'Gold-trimmed raider. Faster, tougher, and it shoots more.',
+      asset: SpriteLibrary.enemyBasicElite,
+      width: 60,
+      height: 64,
+      maxHp: 55,
+      speed: 118,
+      score: 30,
+      color: Color(0xFFFF7A1A),
+      fireInterval: 1.6,
+      firstWave: 6,
+      shape: EnemyShape.raider,
+      hitboxWidth: 0.76,
+      hitboxHeight: 0.56,
+      hitboxCenterY: 0.60,
+    ),
+    EnemyType.fastElite: EnemySpec(
+      displayName: 'VOID LANCER',
+      description: 'Razor interceptor. Weaves hard and never stops moving.',
+      asset: SpriteLibrary.enemyFastElite,
+      width: 58,
+      height: 64,
+      maxHp: 34,
+      speed: 205,
+      score: 35,
+      color: Color(0xFFFF2EA6),
+      firstWave: 7,
+      shape: EnemyShape.dart,
+      weaveAmplitude: 84,
+      weaveFrequency: 2.6,
+      hitboxWidth: 0.52,
+      hitboxHeight: 0.54,
+      hitboxCenterY: 0.60,
+    ),
+    EnemyType.tankElite: EnemySpec(
+      displayName: 'EMERALD BULWARK',
+      description: 'Reinforced hulk behind gold plate. Very hard to shift.',
+      asset: SpriteLibrary.enemyTankElite,
+      width: 82,
+      height: 85,
+      maxHp: 260,
+      speed: 52,
+      score: 85,
+      color: Color(0xFF57E03A),
+      fireInterval: 1.4,
+      firstWave: 8,
+      shape: EnemyShape.hulk,
+      bulletAsset: SpriteLibrary.bulletEnemyHeavy,
+      bulletDamage: 15,
+      hitboxWidth: 0.82,
+      hitboxHeight: 0.64,
+      hitboxCenterY: 0.55,
+    ),
+
+    // ---- specialists ------------------------------------------------------
+    EnemyType.bomber: EnemySpec(
+      displayName: 'ORDNANCE BOMBER',
+      description: 'Slow bomb truck. Lobs heavy shells that really hurt.',
+      asset: SpriteLibrary.enemyBomber,
+      width: 76,
+      height: 76,
+      maxHp: 130,
+      speed: 58,
+      score: 55,
+      color: Color(0xFFFFA51F),
+      fireInterval: 2,
+      firstWave: 10,
+      shape: EnemyShape.bomber,
+      bulletAsset: SpriteLibrary.bulletEnemyHeavy,
+      bulletDamage: 20,
+      hitboxWidth: 0.80,
+      hitboxHeight: 0.58,
+      hitboxCenterY: 0.55,
+    ),
+    EnemyType.drone: EnemySpec(
+      displayName: 'SENTRY DRONE',
+      description: 'Quad-rotor sentry. Drifts in fast and fires on sight.',
+      asset: SpriteLibrary.enemyDrone,
+      width: 66,
+      height: 57,
+      maxHp: 46,
+      speed: 132,
+      score: 30,
+      color: Color(0xFFFF3B2F),
+      fireInterval: 1.7,
+      firstWave: 11,
+      shape: EnemyShape.orb,
+      weaveAmplitude: 56,
+      weaveFrequency: 1.5,
+      hitboxWidth: 0.74,
+      hitboxHeight: 0.66,
+      hitboxCenterY: 0.50,
+    ),
+    EnemyType.boss: EnemySpec(
+      displayName: 'CRIMSON DREADNOUGHT',
+      description: 'Capital-class hostile. Rare, enormous, and it shoots back.',
+      asset: SpriteLibrary.enemyBoss,
+      width: 128,
+      height: 127,
+      maxHp: 900,
+      speed: 34,
+      score: 400,
+      color: Color(0xFFFF1F0F),
+      fireInterval: 0.85,
+      firstWave: 14,
+      shape: EnemyShape.gunship,
+      bulletAsset: SpriteLibrary.bulletEnemyHeavy,
+      bulletDamage: 24,
+      hitboxWidth: 0.84,
+      hitboxHeight: 0.62,
+      hitboxCenterY: 0.54,
     ),
   };
 }
@@ -219,8 +367,13 @@ class Enemy extends ArtComponent {
   bool get isDying => _dying;
 
   /// The big hulls get a louder death.
-  bool get _isHeavy =>
-      type == EnemyType.tank || type == EnemyType.assault;
+  bool get _isHeavy => const <EnemyType>{
+    EnemyType.tank,
+    EnemyType.assault,
+    EnemyType.tankElite,
+    EnemyType.bomber,
+    EnemyType.boss,
+  }.contains(type);
 
   final Paint _shapePaint = Paint();
   final Paint _barPaint = Paint();
@@ -286,7 +439,9 @@ class Enemy extends ArtComponent {
     game.layer.add(
       EnemyBullet(
         position: Vector2(position.x, position.y + size.y * 0.4),
-        sprite: game.sprites[SpriteLibrary.bulletEnemy],
+        sprite: game.sprites[spec.bulletAsset],
+        damage: spec.bulletDamage,
+        heavy: spec.bulletAsset != SpriteLibrary.bulletEnemy,
       ),
     );
   }
@@ -367,8 +522,8 @@ class Enemy extends ArtComponent {
     final w = size.x;
     final h = size.y;
     final path = Path();
-    switch (type) {
-      case EnemyType.basic:
+    switch (spec.shape) {
+      case EnemyShape.raider:
         // Blunt, downward-pointing hull.
         path
           ..moveTo(w * 0.5, h)
@@ -377,15 +532,15 @@ class Enemy extends ArtComponent {
           ..lineTo(w * 0.72, h * 0.05)
           ..lineTo(w * 0.95, h * 0.35)
           ..close();
-      case EnemyType.fast:
-        // Narrow dart.
+      case EnemyShape.dart:
+        // Narrow spike.
         path
           ..moveTo(w * 0.5, h)
           ..lineTo(w * 0.1, h * 0.45)
           ..lineTo(w * 0.5, 0)
           ..lineTo(w * 0.9, h * 0.45)
           ..close();
-      case EnemyType.tank:
+      case EnemyShape.hulk:
         // Broad, armoured hexagon.
         path
           ..moveTo(w * 0.5, h)
@@ -394,21 +549,8 @@ class Enemy extends ArtComponent {
           ..lineTo(w * 0.88, h * 0.18)
           ..lineTo(w * 0.98, h * 0.68)
           ..close();
-      case EnemyType.heavy:
-        // Raider outline with weapon pods bolted to the shoulders.
-        path
-          ..moveTo(w * 0.5, h)
-          ..lineTo(w * 0.08, h * 0.62)
-          ..lineTo(w * 0.0, h * 0.30)
-          ..lineTo(w * 0.30, h * 0.34)
-          ..lineTo(w * 0.34, h * 0.04)
-          ..lineTo(w * 0.66, h * 0.04)
-          ..lineTo(w * 0.70, h * 0.34)
-          ..lineTo(w * 1.0, h * 0.30)
-          ..lineTo(w * 0.92, h * 0.62)
-          ..close();
-      case EnemyType.assault:
-        // Wide gunship: long swept wings either side of a deep hull.
+      case EnemyShape.gunship:
+        // Wide hull with long swept wings either side.
         path
           ..moveTo(w * 0.5, h)
           ..lineTo(w * 0.16, h * 0.72)
@@ -420,6 +562,39 @@ class Enemy extends ArtComponent {
           ..lineTo(w * 1.0, h * 0.22)
           ..lineTo(w * 0.84, h * 0.72)
           ..close();
+      case EnemyShape.bomber:
+        // Fat belly, stubby wings.
+        path
+          ..moveTo(w * 0.5, h * 0.98)
+          ..lineTo(w * 0.14, h * 0.66)
+          ..lineTo(w * 0.02, h * 0.30)
+          ..lineTo(w * 0.32, h * 0.36)
+          ..lineTo(w * 0.36, h * 0.04)
+          ..lineTo(w * 0.64, h * 0.04)
+          ..lineTo(w * 0.68, h * 0.36)
+          ..lineTo(w * 0.98, h * 0.30)
+          ..lineTo(w * 0.86, h * 0.66)
+          ..close();
+      case EnemyShape.orb:
+        // Core disc with four rotor pods.
+        path.addOval(
+          Rect.fromCenter(
+            center: Offset(w * 0.5, h * 0.5),
+            width: w * 0.46,
+            height: h * 0.62,
+          ),
+        );
+        for (final dx in <double>[0.16, 0.84]) {
+          for (final dy in <double>[0.22, 0.78]) {
+            path.addOval(
+              Rect.fromCenter(
+                center: Offset(w * dx, h * dy),
+                width: w * 0.30,
+                height: h * 0.26,
+              ),
+            );
+          }
+        }
     }
     canvas.drawPath(path, _shapePaint);
 

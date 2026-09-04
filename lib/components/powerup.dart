@@ -18,27 +18,34 @@ enum PowerupType {
 
   /// Temporarily shortens the player's fire interval.
   rapidFire,
+
+  /// Temporarily bolts two extra barrels onto the cannon and boosts damage.
+  overdrive,
 }
 
 extension PowerupTypeInfo on PowerupType {
   String get asset => switch (this) {
     PowerupType.health => SpriteLibrary.powerupHealth,
     PowerupType.rapidFire => SpriteLibrary.powerupRapidFire,
+    PowerupType.overdrive => SpriteLibrary.powerupEvolution,
   };
 
   Color get color => switch (this) {
     PowerupType.health => GameConfig.healthColor,
     PowerupType.rapidFire => GameConfig.rapidFireColor,
+    PowerupType.overdrive => GameConfig.playerGlow,
   };
 
   String get label => switch (this) {
     PowerupType.health => 'REPAIR',
     PowerupType.rapidFire => 'RAPID FIRE',
+    PowerupType.overdrive => 'OVERDRIVE',
   };
 
   String get sound => switch (this) {
     PowerupType.health => AudioManager.powerupHealth,
     PowerupType.rapidFire => AudioManager.powerupRapidFire,
+    PowerupType.overdrive => AudioManager.powerupRapidFire,
   };
 }
 
@@ -105,6 +112,8 @@ class Powerup extends ArtComponent {
         player.heal(GameConfig.healthRestore);
       case PowerupType.rapidFire:
         player.grantRapidFire(GameConfig.rapidFireDuration);
+      case PowerupType.overdrive:
+        player.grantOverdrive(GameConfig.overdriveDuration);
     }
 
     game.audio.play(type.sound);
@@ -165,6 +174,22 @@ class Powerup extends ArtComponent {
           ),
           _shapePaint,
         );
+      case PowerupType.overdrive:
+        // Three stacked chevrons: "upgrade".
+        for (var i = 0; i < 3; i++) {
+          final top = h * (0.18 + i * 0.24);
+          canvas.drawPath(
+            Path()
+              ..moveTo(w * 0.26, top + h * 0.14)
+              ..lineTo(w * 0.5, top)
+              ..lineTo(w * 0.74, top + h * 0.14)
+              ..lineTo(w * 0.62, top + h * 0.14)
+              ..lineTo(w * 0.5, top + h * 0.07)
+              ..lineTo(w * 0.38, top + h * 0.14)
+              ..close(),
+            _shapePaint,
+          );
+        }
       case PowerupType.rapidFire:
         for (var i = 0; i < 2; i++) {
           final top = h * (0.24 + i * 0.3);

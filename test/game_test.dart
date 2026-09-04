@@ -176,6 +176,19 @@ void main() {
       expect(tank.width, greaterThan(basic.width));
       expect(fast.speed, greaterThan(basic.speed));
       expect(fast.weaveAmplitude, greaterThan(0));
+
+      // Elites out-class the hulls they are based on.
+      final basicElite = EnemySpec.specs[EnemyType.basicElite]!;
+      expect(basicElite.maxHp, greaterThan(basic.maxHp));
+      expect(basicElite.score, greaterThan(basic.score));
+      expect(basicElite.firstWave, greaterThan(basic.firstWave));
+
+      // The capital hostile is the biggest thing in the game.
+      final boss = EnemySpec.specs[EnemyType.boss]!;
+      for (final spec in EnemySpec.specs.values) {
+        expect(boss.maxHp, greaterThanOrEqualTo(spec.maxHp));
+        expect(boss.score, greaterThanOrEqualTo(spec.score));
+      }
     });
   });
 
@@ -207,38 +220,12 @@ void main() {
         expect(game.sprites[name], isNotNull, reason: '$name should have loaded');
       }
 
-      // The heavy hulls, ordnance and effect art that arrived later.
-      for (final name in const <String>[
-        SpriteLibrary.playerMk5,
-        SpriteLibrary.playerMk6,
-        SpriteLibrary.playerMk7,
-        SpriteLibrary.playerTitan,
-        SpriteLibrary.bulletPlayerUltra,
-        SpriteLibrary.bulletPlayerLaser,
-        SpriteLibrary.missilePlayerHeavy,
-        SpriteLibrary.missilePlayerCluster,
-        SpriteLibrary.bombPlayer,
-        SpriteLibrary.bombPlayerNuclear,
-        SpriteLibrary.attackAtomic,
-        SpriteLibrary.explosionAtomic,
-        SpriteLibrary.attackNova,
-        SpriteLibrary.attackBeam,
-        SpriteLibrary.enemyHeavy,
-        SpriteLibrary.enemyAssault,
-      ]) {
+      // Every sprite the library knows about now ships with the game.
+      expect(game.sprites.missing, isEmpty);
+      for (final name in SpriteLibrary.all) {
         expect(game.sprites[name], isNotNull, reason: '$name should have loaded');
       }
 
-      // Mid-tier skin art that still has not been drawn. Absent is a supported
-      // state: the hangar and the game both fall back to code-drawn shapes.
-      for (final name in const <String>[
-        SpriteLibrary.playerMk2,
-        SpriteLibrary.playerMk3,
-        SpriteLibrary.playerMk4,
-        SpriteLibrary.bulletPlayerHeavy,
-      ]) {
-        expect(game.sprites[name], isNull, reason: '$name is not drawn yet');
-      }
       expect(tester.takeException(), isNull);
     });
 
@@ -339,6 +326,30 @@ void main() {
       player.grantRapidFire(GameConfig.rapidFireDuration);
       expect(player.fireInterval, GameConfig.rapidFireInterval);
       expect(player.fireInterval, lessThan(GameConfig.playerFireInterval));
+    });
+
+    testWidgets('overdrive adds barrels and damage, then wears off',
+        (tester) async {
+      final game = await _startRun(tester);
+      final player = game.player!;
+      final base = player.skin.weapon.shotCount;
+      final baseDamage = player.bulletDamage;
+
+      expect(player.isOverdriven, isFalse);
+      expect(player.activeBarrels.length, base);
+
+      player.grantOverdrive(GameConfig.overdriveDuration);
+      expect(player.isOverdriven, isTrue);
+      expect(player.activeBarrels.length, base + 2,
+          reason: 'two extra outer barrels');
+      expect(player.bulletDamage,
+          baseDamage * GameConfig.overdriveDamageMultiplier);
+
+      // Run the clock past the buff and confirm it lapses. _tick advances
+      // 16ms a frame, so convert the duration rather than guessing a count.
+      await _tick(tester, (GameConfig.overdriveDuration / 0.016).ceil() + 5);
+      expect(player.overdriveRemaining, 0);
+      expect(player.activeBarrels.length, base);
     });
 
     testWidgets('health pickups heal but never overheal', (tester) async {
@@ -720,6 +731,8 @@ void main() {
 
       // The list scrolls, so check the early entries are rendered and that the
       // ship actions are replaced by PLAY alone.
+      // The codex is ordered by first wave, so the two earliest hostiles are
+      // always the ones rendered at the top of the list.
       expect(find.text(EnemySpec.specs[EnemyType.basic]!.displayName),
           findsOneWidget);
       expect(find.text(EnemySpec.specs[EnemyType.fast]!.displayName),

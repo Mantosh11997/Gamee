@@ -24,7 +24,7 @@ The Android and iOS projects are generated and locked to portrait, and the art a
 are already in the repo — there is nothing to configure before the first run.
 
 ```bash
-flutter test         # 33 tests: lifecycle, difficulty, combat, audio, hangar economy, ordnance, codex, both render paths
+flutter test         # 34 tests: lifecycle, difficulty, combat, audio, hangar economy, ordnance, codex, both render paths
 flutter analyze      # clean
 flutter build apk --release
 flutter build ios --release
@@ -53,6 +53,10 @@ the one that flies.
 | Super Dreadnought | 22000 | Siege Lances ×9 | Gravity Bomb |
 | Titan | 40000 | Apex Battery ×11 | Atomic Warhead |
 
+**Overdrive** is the rare third drop: for 8 seconds it bolts two wide outer barrels onto
+whatever the hull already carries and multiplies bullet damage — so the buff reads instantly
+on every ship. `Player.activeBarrels` is the single place that decides a volley's layout.
+
 **Ordnance** is the heavy secondary weapon the big hulls carry. It fires on its own slow
 cooldown alongside the cannon, flies slower than a bullet, and detonates on impact for full
 damage to what it hit plus half damage to everything inside its blast radius — so it is
@@ -70,11 +74,9 @@ angle in degrees. `Player._fire()` walks that list, so a new weapon is data, not
 the hangar's weapon panel draws the same volley the ship will actually fire. Adding a ship
 is one entry in `ShipCatalog.all` plus its PNG.
 
-Skin art is optional exactly like everything else. `player_mk2/3/4.png` and
-`bullet_player_heavy.png` are still not in the repo, so those three cards show a code-drawn
-silhouette and those hulls fall back to the starter sprite in-game; everything else —
-stats, weapons, ordnance, prices, unlocking — works regardless. Drop the PNGs in and they
-appear with no code change.
+Every hull in the catalogue now has real art. The fallback contract still holds, though:
+delete any PNG and that card draws a code-drawn silhouette while the rest of the game
+carries on. Both paths are covered by tests.
 
 ---
 
@@ -164,11 +166,11 @@ lib/
 │  ├─ background.dart            gradient + nebulae + 3-layer looping parallax starfield
 │  ├─ game_layer.dart            container for gameplay entities; applies the screen shake
 │  ├─ player.dart                movement, firing cadence, HP, i-frames, glow, thruster
-│  ├─ enemy.dart                 5 archetypes + specs, weaving, shooting, HP bar, death flash
+│  ├─ enemy.dart                 11 archetypes + specs, weaving, shooting, HP bar, death flash
 │  ├─ bullet.dart                PlayerBullet / EnemyBullet
 │  ├─ ordnance.dart              missiles, bombs and atomics with splash damage
 │  ├─ sprite_burst.dart          scaling/fading sprite explosions
-│  ├─ powerup.dart               health & rapid-fire drops
+│  ├─ powerup.dart               health, rapid-fire and overdrive drops
 │  ├─ effects.dart               particle explosions, sparks, thruster puffs, pickup sparkle
 │  ├─ controls.dart              joystick + optional hold-to-fire button
 │  └─ hud.dart                   HP bar, score, wave, buff timer, wave banner
@@ -295,6 +297,7 @@ Open `lib/game/config.dart` — it is the single knob board.
 | `enemySpeedRampPerWave`, `maxEnemySpeedMultiplier` | the speed curve and its ceiling |
 | `firstShootingWave`, `firstTankWave` | how gentle the opening is |
 | `powerupDropChance`, `healthRestore`, `rapidFireDuration` | drop economy |
+| `overdriveDuration`, `overdriveDamageMultiplier`, `overdriveBarrel*` | the overdrive buff |
 | `shakeOnPlayerHit`, `shakeOnExplosion` | how much the screen kicks |
 | `sfxVolume`, `musicVolume` | master audio levels |
 
@@ -315,7 +318,17 @@ threat before you meet it.
 | Stinger | wave 2 | 14 | fast, weaves, no guns |
 | Hulk | wave 3 | 120 | slow armoured brick |
 | Heavy Raider | wave 5 | 70 | up-gunned raider, fires twice as often |
+| Crimson Ace | wave 6 | 55 | elite raider, faster and tougher |
+| Void Lancer | wave 7 | 34 | elite interceptor, weaves hard |
+| Emerald Bulwark | wave 8 | 260 | elite hulk behind gold plate, heavy shells |
 | Assault Cruiser | wave 9 | 190 | wide gunship that drifts while it hammers you |
+| Ordnance Bomber | wave 10 | 130 | slow bomb truck, heavy shells |
+| Sentry Drone | wave 11 | 46 | quad-rotor, drifts in fast |
+| Crimson Dreadnought | wave 14 | 900 | capital-class, rare, hits very hard |
+
+The Crimson Dreadnought is a very tough *enemy type*, not a scripted boss fight — it rolls
+into the mix on a low weight from wave 14 rather than replacing a wave. A proper phased
+boss is still open work.
 
 Each type's `firstWave` lives on its `EnemySpec`, and both the spawner and the codex read
 it — so the list can't drift out of sync with what actually spawns. A test asserts the

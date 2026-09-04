@@ -41,6 +41,12 @@ class GameConfig {
   /// How long the rapid-fire buff lasts, in seconds.
   static const double rapidFireDuration = 7;
 
+  /// Overdrive: two extra outer barrels and harder-hitting shots.
+  static const double overdriveDuration = 8;
+  static const double overdriveDamageMultiplier = 1.6;
+  static const double overdriveBarrelAngle = 34;
+  static const double overdriveBarrelOffset = 0.5;
+
   /// Grace period after taking a hit: no damage, sprite blinks.
   static const double playerInvulnerability = 1.1;
   static const double playerBlinkPeriod = 0.09;

@@ -139,14 +139,30 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
 
   // ---------------------------------------------------------------- buffs --
 
-  /// Pill showing the remaining time on the rapid-fire buff.
+  /// Pill showing the remaining time on an active buff. Overdrive wins when
+  /// both are running, because it is the rarer drop.
   void _renderBuff(Canvas canvas, double top) {
     final player = game.player;
-    final double remaining = player?.rapidFireRemaining ?? 0;
-    if (remaining <= 0) {
+    final double overdrive = player?.overdriveRemaining ?? 0;
+    final double rapid = player?.rapidFireRemaining ?? 0;
+
+    final String label;
+    final double remaining;
+    final double ratio;
+    final Color color;
+    if (overdrive > 0) {
+      label = 'OVERDRIVE';
+      remaining = overdrive;
+      ratio = (overdrive / GameConfig.overdriveDuration).clamp(0.0, 1.0);
+      color = GameConfig.playerGlow;
+    } else if (rapid > 0) {
+      label = 'RAPID FIRE';
+      remaining = rapid;
+      ratio = (rapid / GameConfig.rapidFireDuration).clamp(0.0, 1.0);
+      color = GameConfig.rapidFireColor;
+    } else {
       return;
     }
-    final ratio = (remaining / GameConfig.rapidFireDuration).clamp(0.0, 1.0);
 
     const width = 132.0;
     const height = 20.0;
@@ -159,7 +175,7 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
     // The fill drains left-to-right as the buff expires.
     canvas.save();
     canvas.clipRRect(rrect);
-    _paint.color = GameConfig.rapidFireColor;
+    _paint.color = color;
     canvas.drawRect(
       Rect.fromLTWH(rect.left, rect.top, rect.width * ratio, rect.height),
       _paint,
@@ -168,7 +184,7 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
 
     _buffText.render(
       canvas,
-      'RAPID FIRE ${remaining.ceil()}s',
+      '$label ${remaining.ceil()}s',
       Vector2(rect.center.dx, rect.center.dy),
       anchor: Anchor.center,
     );

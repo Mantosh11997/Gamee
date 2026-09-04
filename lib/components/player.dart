@@ -39,6 +39,9 @@ class Player extends ArtComponent {
   /// Seconds left on the rapid-fire buff (0 = inactive). Read by the HUD.
   double rapidFireRemaining = 0;
 
+  /// Seconds left on the overdrive buff (0 = inactive). Read by the HUD.
+  double overdriveRemaining = 0;
+
   double _fireCooldown = 0;
   double _ordnanceCooldown = 0;
   double _invulnerability = 0;
@@ -117,6 +120,9 @@ class Player extends ArtComponent {
     if (rapidFireRemaining > 0) {
       rapidFireRemaining = max(0, rapidFireRemaining - dt);
     }
+    if (overdriveRemaining > 0) {
+      overdriveRemaining = max(0, overdriveRemaining - dt);
+    }
   }
 
   void _updateFiring(double dt) {
@@ -128,6 +134,33 @@ class Player extends ArtComponent {
       _fireCooldown = fireInterval;
     }
   }
+
+  /// True while the overdrive buff is running.
+  bool get isOverdriven => overdriveRemaining > 0;
+
+  /// The barrels the next volley will use.
+  ///
+  /// Overdrive bolts two wide outer barrels onto whatever the hull already
+  /// carries, so the buff reads instantly on every ship.
+  List<Barrel> get activeBarrels => <Barrel>[
+    ...skin.weapon.barrels,
+    if (isOverdriven) ...<Barrel>[
+      const Barrel(
+        offset: -GameConfig.overdriveBarrelOffset,
+        angle: -GameConfig.overdriveBarrelAngle,
+      ),
+      const Barrel(
+        offset: GameConfig.overdriveBarrelOffset,
+        angle: GameConfig.overdriveBarrelAngle,
+      ),
+    ],
+  ];
+
+  /// Damage each bolt in the next volley will carry.
+  double get bulletDamage =>
+      GameConfig.playerBulletDamage *
+      skin.weapon.damageMultiplier *
+      (isOverdriven ? GameConfig.overdriveDamageMultiplier : 1);
 
   /// Fires one volley immediately, ignoring the cooldown. Test hook.
   @visibleForTesting
@@ -179,12 +212,14 @@ class Player extends ArtComponent {
         game.sprites[SpriteLibrary.bulletPlayer];
     final muzzleY = position.y - size.y * 0.42;
 
-    for (final barrel in weapon.barrels) {
+    final damage = bulletDamage;
+
+    for (final barrel in activeBarrels) {
       game.layer.add(
         PlayerBullet(
           position: Vector2(position.x + barrel.offset * size.x, muzzleY),
           sprite: bulletSprite,
-          damage: GameConfig.playerBulletDamage * weapon.damageMultiplier,
+          damage: damage,
           color: weapon.bulletColor,
           angleDegrees: barrel.angle,
         ),
@@ -231,6 +266,10 @@ class Player extends ArtComponent {
     rapidFireRemaining = max(rapidFireRemaining, 0) + seconds;
   }
 
+  void grantOverdrive(double seconds) {
+    overdriveRemaining = max(overdriveRemaining, 0) + seconds;
+  }
+
   void _die() {
     game.layer.add(
       Effects.explosion(
@@ -275,6 +314,18 @@ class Player extends ArtComponent {
         return 22;
       case EnemyType.assault:
         return 34;
+      case EnemyType.basicElite:
+        return 20;
+      case EnemyType.fastElite:
+        return 16;
+      case EnemyType.tankElite:
+        return 36;
+      case EnemyType.bomber:
+        return 30;
+      case EnemyType.drone:
+        return 18;
+      case EnemyType.boss:
+        return 45;
     }
   }
 

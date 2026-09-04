@@ -1,6 +1,6 @@
-import 'package:flame/components.dart';
 import 'dart:math';
 
+import 'package:flame/components.dart';
 import 'package:flutter/material.dart';
 
 import '../game/audio.dart';
@@ -175,14 +175,27 @@ class PlayerBullet extends Bullet {
 
 /// Fired by enemies, travels down, damages the player.
 class EnemyBullet extends Bullet {
-  EnemyBullet({required super.position, required super.sprite})
-    : super(
-        size: Vector2(GameConfig.enemyBulletWidth, GameConfig.enemyBulletHeight),
-        velocity: Vector2(0, GameConfig.enemyBulletSpeed),
-        damage: GameConfig.enemyBulletDamage,
-        glowColor: GameConfig.enemyBulletColor,
-        hitboxCenterY: GameConfig.enemyBulletHitboxCenterY,
-      );
+  /// [heavy] swaps in the chunkier shell the big hulls fire: wider, slower,
+  /// and it hurts a lot more.
+  EnemyBullet({
+    required super.position,
+    required super.sprite,
+    super.damage = GameConfig.enemyBulletDamage,
+    bool heavy = false,
+  }) : super(
+         size: heavy
+             ? Vector2(
+                 GameConfig.enemyBulletWidth * 2.2,
+                 GameConfig.enemyBulletHeight * 0.9,
+               )
+             : Vector2(
+                 GameConfig.enemyBulletWidth,
+                 GameConfig.enemyBulletHeight,
+               ),
+         velocity: Vector2(0, GameConfig.enemyBulletSpeed * (heavy ? 0.8 : 1)),
+         glowColor: GameConfig.enemyBulletColor,
+         hitboxCenterY: heavy ? 0.55 : GameConfig.enemyBulletHitboxCenterY,
+       );
 
   @override
   void onCollisionStart(Set<Vector2> intersectionPoints, PositionComponent other) {
