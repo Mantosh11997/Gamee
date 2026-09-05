@@ -21,7 +21,8 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
   final Paint _paint = Paint();
 
   final TextPaint _hpText = TextPaint(
-    style: const TextStyle(
+    style: TextStyle(
+      fontFamily: GameConfig.fontFamily,
       color: GameConfig.hudText,
       fontSize: 12,
       fontWeight: FontWeight.w700,
@@ -30,7 +31,8 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
   );
 
   final TextPaint _scoreText = TextPaint(
-    style: const TextStyle(
+    style: TextStyle(
+      fontFamily: GameConfig.fontFamily,
       color: GameConfig.hudText,
       fontSize: 26,
       fontWeight: FontWeight.w800,
@@ -39,8 +41,9 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
   );
 
   final TextPaint _waveText = TextPaint(
-    style: const TextStyle(
-      color: Color(0xFF9FB4D6),
+    style: TextStyle(
+      fontFamily: GameConfig.fontFamily,
+      color: const Color(0xFF9FB4D6),
       fontSize: 13,
       fontWeight: FontWeight.w700,
       letterSpacing: 2,
@@ -48,8 +51,9 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
   );
 
   final TextPaint _buffText = TextPaint(
-    style: const TextStyle(
-      color: Color(0xFF0B0D1A),
+    style: TextStyle(
+      fontFamily: GameConfig.fontFamily,
+      color: const Color(0xFF0B0D1A),
       fontSize: 11,
       fontWeight: FontWeight.w800,
       letterSpacing: 1,
@@ -215,6 +219,7 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
 
   TextPaint _fadedBanner(double alpha) => TextPaint(
     style: TextStyle(
+      fontFamily: GameConfig.fontFamily,
       color: Colors.white.withValues(alpha: alpha),
       fontSize: 40,
       fontWeight: FontWeight.w900,
@@ -237,6 +242,7 @@ class Hud extends PositionComponent with HasGameReference<SpaceShooterGame> {
     final alpha = min(1.0, timer / 0.4).clamp(0.0, 1.0);
     TextPaint(
       style: TextStyle(
+        fontFamily: GameConfig.fontFamily,
         color: Colors.white.withValues(alpha: alpha),
         fontSize: 18,
         fontWeight: FontWeight.w800,

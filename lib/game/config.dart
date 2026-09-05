@@ -128,6 +128,13 @@ class GameConfig {
   static const double shakeOnPlayerDeath = 18;
   static const double shakeDuration = 0.3;
 
+  /// Font family for all in-game text, or null for the platform default.
+  ///
+  /// Not const: a build that bundles a display font sets this once at start-up,
+  /// and the demo-capture harness points it at a real face so the HUD renders
+  /// with type rather than the test framework's placeholder glyphs.
+  static String? fontFamily;
+
   // ----------------------------------------------------------------- audio --
 
   /// Master level for one-shot effects; individual calls scale this further.

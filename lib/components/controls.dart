@@ -49,8 +49,9 @@ class FireButton extends PositionComponent with TapCallbacks {
     ..strokeWidth = 2;
 
   final TextPaint _label = TextPaint(
-    style: const TextStyle(
-      color: Color(0xCCFFFFFF),
+    style: TextStyle(
+      fontFamily: GameConfig.fontFamily,
+      color: const Color(0xCCFFFFFF),
       fontSize: 14,
       fontWeight: FontWeight.w700,
       letterSpacing: 1.6,

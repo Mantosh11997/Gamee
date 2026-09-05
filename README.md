@@ -282,6 +282,30 @@ both menus; mute pauses the music in place rather than stopping it.
 
 ---
 
+## The demo video
+
+`tool/demo/demo_capture.dart` renders a 30-second showcase of the real game and
+`tool/build_demo_video.sh` encodes it, scored with the game's own generated music loop:
+
+```bash
+pip install imageio-ffmpeg                  # only if ffmpeg is not on PATH
+flutter test tool/demo/demo_capture.dart    # -> build/demo_frames/*.png  (~4 min, ~600MB)
+./tool/build_demo_video.sh                  # -> build/nebula_strike_demo.mp4
+```
+
+It lives outside `test/` on purpose, so `flutter test` and CI never pick it up.
+
+The gameplay is genuine — real components, real collisions, the real wave manager running
+underneath. Only the *inputs* are scripted: a director swaps hulls on the beat, seeds each
+hostile type, steers the ship at whatever is lowest on screen and tops up HP so the run
+survives all eight hulls. Thirty seconds covers every ship and every enemy in the game.
+
+Two details that matter if you re-run it: the harness loads Roboto and MaterialIcons
+through `FontLoader` (the test framework otherwise draws placeholder boxes for every glyph),
+and it sets `GameConfig.fontFamily` so Flame's HUD picks the same face up.
+
+---
+
 ## Tuning it
 
 Open `lib/game/config.dart` — it is the single knob board.
