@@ -107,6 +107,10 @@ void main() {
     GameConfig.fontFamily = 'Roboto';
 
     AudioManager.enabled = false;
+    // These harnesses run under flutter_test but live outside test/, so the
+    // analyzer does not recognise them as tests. Starting from an empty store
+    // keeps every capture reproducible.
+    // ignore: invalid_use_of_visible_for_testing_member
     SharedPreferences.setMockInitialValues(<String, Object>{});
     tester.view.physicalSize = const Size(380, 820);
     tester.view.devicePixelRatio = 1;

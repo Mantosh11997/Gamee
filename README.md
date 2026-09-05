@@ -282,6 +282,21 @@ both menus; mute pauses the music in place rather than stopping it.
 
 ---
 
+## Store listing
+
+`docs/STORE-LISTING.md` carries ready-to-paste Play Store copy (name, short and full
+descriptions, all inside their character limits) plus a content and tech fact sheet.
+`docs/screenshots/` holds four 1140x2460 portrait screenshots rendered from the real game:
+
+```bash
+flutter test tool/demo/screenshots.dart   # -> build/screenshots/*.png, several per scene
+```
+
+Pick the ones you want and copy them into `docs/screenshots/`. Like the video harness it
+lives outside `test/`, so CI never runs it.
+
+---
+
 ## The demo video
 
 `tool/demo/demo_capture.dart` renders a 30-second showcase of the real game and
